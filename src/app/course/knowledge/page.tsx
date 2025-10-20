@@ -1,10 +1,7 @@
 
- "use client";
-import BottomBar from "@/components/BottomBar";
-import Link from "next/link";
-import { Joystick as IconJoystick, CalendarDays as IconCalendarDays, Calculator as IconCalculator, GraduationCap as IconGraduationCap } from "lucide-react";
+"use client";
 import { useState } from "react";
-
+import BottomBar from "@/components/BottomBar";
 type Article = { id:string; title:string; important?:boolean; body:string };
 
 const ARTICLES: Article[] = [

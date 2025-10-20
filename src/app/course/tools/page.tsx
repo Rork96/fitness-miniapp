@@ -2,17 +2,7 @@
  "use client";
 import BottomBar from "@/components/BottomBar";
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  Joystick as IconJoystick,
-  CalendarDays as IconCalendarDays,
-  Calculator as IconCalculator,
-  GraduationCap as IconGraduationCap,
-  Flame,
-  Zap,
-  X,
-  ChevronLeft,
-} from "lucide-react";
+import { Flame, Zap, Calculator as IconCalculator } from "lucide-react";
 
 type Gender = "male" | "female";
 

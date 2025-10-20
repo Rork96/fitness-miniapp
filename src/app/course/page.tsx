@@ -1,6 +1,5 @@
 
  "use client";
-import Link from "next/link";
 import BottomBar from "@/components/BottomBar";
 import Image from "next/image";
 import { getProgress, toggleDayDone } from "@/lib/storage";
@@ -14,10 +13,6 @@ import {
   Plus as IconPlus,
   ChevronDown as IconChevronDown,
   Settings as IconSettings,
-  Joystick as IconJoystick,
-  CalendarDays as IconCalendarDays,
-  Calculator as IconCalculator,
-  GraduationCap as IconGraduationCap,
 } from "lucide-react";
 
 type Level = "beginner" | "intermediate" | "advanced";
@@ -697,7 +692,7 @@ useEffect(()=>{
         {/* When menu is open and not running: show vertical presets */}
         {fabOpen && !running && (
           <div className="flex flex-col items-start gap-3 mb-3">
-            {[10,7,5,4,3,2].map((m)=>(
+            {PRESETS.map((m)=>(
               <button key={m}
                 onClick={()=>startPreset(m)}
                 className="h-14 w-14 rounded-full bg-neutral-900 border border-neutral-800 shadow-md flex items-center justify-center text-white text-xl font-extrabold"

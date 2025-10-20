@@ -1,5 +1,4 @@
- "use client";
-import Link from "next/link";
+"use client";
 import BottomBar from "@/components/BottomBar";
 function getVariantsForDay(day:number){
   try{
@@ -30,10 +29,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays as IconCalendarDays,
-  Joystick as IconJoystick,
-  CalendarDays,
-  Calculator as IconCalculator,
-  GraduationCap as IconGraduationCap,
   ArrowRight as IconArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -232,7 +227,7 @@ export default function Progress() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <IconCalendarDays className="text-white" size={20} />
-            <h1 className="text-xl font-extrabold">Щоденник</h1>
+            <h1 className="text-xl font-extrabold">Щоденник тренувань</h1>
           </div>
           <div className="text-xs opacity-80">
             Серія: <span className="font-semibold">{currentStreak}</span> • Рекорд: <span className="font-semibold">{bestStreak}</span>
@@ -302,8 +297,8 @@ export default function Progress() {
                 data-key={k}
                 tabIndex={0}
                 aria-selected={isSelected}
-              aria-label={`Дата ${k}. Підходів: ${total}${total === 0 && mapDateToProgramDay(cell.date!) ? ". Подвійний клік — додати підхід" : ""}`}
-              title={total === 0 && mapDateToProgramDay(cell.date!) ? "Подвійний клік — додати підхід" : undefined}
+              aria-label={`Дата ${k}. Підходів: ${total}${total === 0 && mapDateToProgramDay(cell.date!) ? ". Двічі натисни — додати тренування" : ""}`}
+              title={total === 0 && mapDateToProgramDay(cell.date!) ? "Двічі натисни — додати тренування" : undefined}
               >
                 <span className="font-semibold">{cell.date.getDate()}</span>
                 {total > 0 && (
@@ -318,7 +313,7 @@ export default function Progress() {
         </div>
 
         <div className="mt-4 text-sm opacity-80">
-          У {monthName} тренувальних днів:{" "}
+          У {monthName} було тренувань:{" "}
           <span className="font-semibold">
             {Object.values(totalsByKey).filter((n) => n > 0).length}
           </span>
@@ -328,7 +323,7 @@ export default function Progress() {
       {/* Selected day details */}
       <section className="rounded-2xl bg-neutral-900 p-4">
         <div className="flex items-center justify-between">
-          <div className="font-extrabold">Журнал дня</div>
+          <div className="font-extrabold">Записи за день</div>
           <div className="text-sm opacity-70">
             {selected ? new Date(selected).toLocaleDateString("uk-UA", { day: "2-digit", month: "long", year: "numeric" }) : "--"}
           </div>
@@ -383,7 +378,7 @@ export default function Progress() {
                           className="ml-3 shrink-0 rounded-lg bg-lime-500 text-neutral-900 text-xs px-3 py-1 inline-flex items-center gap-1"
                           aria-label="Перейти до логів вправи"
                         >
-                          Логи <IconArrowRight size={14} />
+                          Запис <IconArrowRight size={14} />
                         </button>
                       )}
                     </div>
@@ -399,7 +394,7 @@ export default function Progress() {
           </>
         ) : (
           <div className="mt-2 text-sm opacity-70">
-            Для цієї дати немає тренувального дня за розкладом (працюємо Пн/Ср/Пт). Обери одну з цих дат, щоб побачити журнал.
+            У цю дату тренувального дня за графіком немає (працюємо Пн/Ср/Пт). Обери одну з цих дат — і побачиш записи.
           </div>
         )}
       </section>
