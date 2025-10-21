@@ -1,17 +1,17 @@
 "use client";
 import BottomBar from "@/components/BottomBar";
-function getVariantsForDay(day:number){
+function getVariantsForDay(day:number): Record<string,string>{
   try{
     const rawBI = localStorage.getItem(`variants_${day}_byIndex`);
     if (rawBI) return JSON.parse(rawBI);
     const raw = localStorage.getItem(`variants_${day}`);
     if (!raw) return {};
     const obj = JSON.parse(raw);
-    if (obj?.byIndex) return obj.byIndex;
+    if (obj?.byIndex) return obj.byIndex as Record<string,string>;
     const map: Record<string,string> = {};
-    Object.entries(obj).forEach(([k,v]: any) => {
+    Object.entries(obj as Record<string, unknown>).forEach(([k,v]) => {
       const idx = String(k).split("_").pop();
-      if (idx !== undefined) map[idx] = String(v);
+      if (idx !== undefined) map[idx] = String(v as string);
     });
     return map;
   }catch{ return {}; }
@@ -63,14 +63,6 @@ function flattenExercises(day: number): string[] {
   }
   // fallback if nothing is saved yet
   return ["Вправа 1", "Вправа 2", "Вправа 3"];
-}
-
-// Helper: goToLogIntent - sets localStorage and navigates to lessons
-function goToLogIntent(router: any, dateKey: string, programDay: number, exId: number) {
-  try {
-    localStorage.setItem("open_log_intent", JSON.stringify({ date: dateKey, day: programDay, exId }));
-  } catch {}
-  router.push("/course");
 }
 
 type MonthMatrixCell = {
@@ -296,7 +288,6 @@ export default function Progress() {
                 className={`aspect-square rounded-xl border transition-all flex items-center justify-center relative focus:outline-none focus:ring-2 focus:ring-white/50 ${bg} ${ring}`}
                 data-key={k}
                 tabIndex={0}
-                aria-selected={isSelected}
               aria-label={`Дата ${k}. Підходів: ${total}${total === 0 && mapDateToProgramDay(cell.date!) ? ". Двічі натисни — додати тренування" : ""}`}
               title={total === 0 && mapDateToProgramDay(cell.date!) ? "Двічі натисни — додати тренування" : undefined}
               >

@@ -1,10 +1,10 @@
 
  "use client";
+import Link from "next/link";
 import BottomBar from "@/components/BottomBar";
 import Image from "next/image";
 import { getProgress, toggleDayDone } from "@/lib/storage";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Timer as IconTimer,
   X as IconX,
@@ -13,7 +13,25 @@ import {
   Plus as IconPlus,
   ChevronDown as IconChevronDown,
   Settings as IconSettings,
+  Joystick as IconJoystick,
+  CalendarDays as IconCalendarDays,
+  Calculator as IconCalculator,
+  GraduationCap as IconGraduationCap,
 } from "lucide-react";
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+    Telegram?: {
+      WebApp?: {
+        HapticFeedback?: {
+          impactOccurred?: (type: "light" | "medium" | "heavy") => void;
+          notificationOccurred?: (type: "success" | "warning" | "error") => void;
+        };
+      };
+    };
+  }
+}
 
 type Level = "beginner" | "intermediate" | "advanced";
 type Track = "gym" | "home";
@@ -63,10 +81,10 @@ export default function Lessons(){
     touchStartX.current = null;
     touchStartY.current = null;
   };
-  useEffect(()=>{
-    const id = setInterval(()=> setBannerIdx(i => (i+1)%banners.length), 7000);
-    return ()=> clearInterval(id);
-  },[]);
+  useEffect(() => {
+    const id = setInterval(() => setBannerIdx(i => (i + 1) % banners.length), 7000);
+    return () => clearInterval(id);
+  }, [banners.length]);
 
   // ---- TIMER (per‑day) ----
   const PRESETS = [2,3,4,5,7,10]; // minutes (small -> big)
@@ -80,14 +98,14 @@ export default function Lessons(){
   const ensureAudio = () => {
     if (typeof window === "undefined") return null;
     if (!audioCtxRef.current) {
-      const Ctor: any = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const Ctor: typeof AudioContext | undefined = window.AudioContext ?? window.webkitAudioContext;
       if (Ctor) audioCtxRef.current = new Ctor();
     }
     return audioCtxRef.current;
   };
   const haptic = (type: "light"|"medium"|"heavy"|"success"|"warning"|"error" = "light") => {
     try {
-      const api = (window as any)?.Telegram?.WebApp?.HapticFeedback;
+      const api = window?.Telegram?.WebApp?.HapticFeedback;
       if (!api) return;
       if (type==="success"||type==="warning"||type==="error") api.notificationOccurred?.(type);
       else api.impactOccurred?.(type);
@@ -114,15 +132,15 @@ export default function Lessons(){
 
   // Preload external bell sound (public/sounds/gong.wav)
   const bellBufRef = useRef<AudioBuffer | null>(null);
-  const loadBell = async () => {
+  const loadBell = useCallback(async () => {
     const ctx = ensureAudio(); if (!ctx || bellBufRef.current) return;
     try {
       const res = await fetch("/sounds/gong.wav");
       const arr = await res.arrayBuffer();
       bellBufRef.current = await ctx.decodeAudioData(arr);
     } catch {}
-  };
-  useEffect(()=>{ loadBell().catch(()=>{}); }, []);
+  }, []);
+  useEffect(() => { void loadBell(); }, [loadBell]);
   const playBell = () => {
     const ctx = ensureAudio(); if (!ctx || !bellBufRef.current) return;
     const src = ctx.createBufferSource();
@@ -185,10 +203,10 @@ export default function Lessons(){
   useEffect(()=>{
     (async ()=>{
       try{
-        const p = await (getProgress as any)();
+        const p = await getProgressSafe();
         setDone(p?.done || []);
       }catch{
-        try { setDone((getProgress as any)().done || []); } catch {}
+        try { setDone((getProgressSafe as () => ProgressResp)().done || []); } catch {}
       }
     })();
   },[]);
@@ -214,7 +232,7 @@ useEffect(()=>{
           localStorage.setItem("timer_running", next > 0 ? "1" : "0");
         }
         if (next === 0) {
-          try { (window as any)?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success"); } catch {}
+          try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success"); } catch {}
           if (bellBufRef.current) playBell(); else playGong();
         }
         return next;
@@ -233,7 +251,7 @@ useEffect(()=>{
     setRunning(true);
     setFabOpen(false);
     haptic("light");
-    try { (window as any)?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
+    try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
   };
 
   const resetTimer = ()=>{
@@ -244,7 +262,7 @@ useEffect(()=>{
       localStorage.setItem("timer_rem", "0");
       localStorage.setItem("timer_running", "0");
     }
-    try { (window as any)?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
+    try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
     {
       const ctx = ensureAudio();
       if (ctx) {
@@ -276,6 +294,10 @@ useEffect(()=>{
 
   const minutes = Math.floor(remaining/60).toString();
   const seconds = (remaining%60).toString().padStart(2,"0");
+
+  type ProgressResp = { done: number[] };
+  const getProgressSafe = getProgress as unknown as () => Promise<ProgressResp> | ProgressResp;
+  const toggleDayDoneSafe = toggleDayDone as unknown as (day:number) => Promise<ProgressResp> | ProgressResp;
 
   // ---- COURSE STATE ----
   // Structured Programs (3 levels × 2 tracks)
@@ -506,10 +528,10 @@ useEffect(()=>{
 
   const onToggleDay = async () => {
     try{
-      const p = await (toggleDayDone as any)(active);
+      const p = await toggleDayDoneSafe(active);
       setDone(p?.done || []);
     }catch{
-      const p = (toggleDayDone as any)(active);
+      const p = (toggleDayDoneSafe as (d:number)=>ProgressResp)(active);
       setDone(p?.done || []);
     }
   };
@@ -520,17 +542,17 @@ useEffect(()=>{
   const openVideo = (src?: string) => {
     setVideoSrc(src || "/demo-video.mp4"); // заміни на свій CDN/URL
     setVideoOpen(true);
-    try { (window as any)?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
+    try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
   };
   const closeVideo = () => { setVideoOpen(false); setVideoSrc(null); };
 
   const handleVideoEnded = async () => {
     if (!done.includes(active)) {
       try{
-        const p = await (toggleDayDone as any)(active);
+        const p = await toggleDayDoneSafe(active);
         setDone(p?.done || []);
       }catch{
-        const p = (toggleDayDone as any)(active);
+        const p = (toggleDayDoneSafe as (d:number)=>ProgressResp)(active);
         setDone(p?.done || []);
       }
     }
@@ -538,13 +560,13 @@ useEffect(()=>{
   };
 
   // ---- LOG MODAL helpers ----
-  const openLog = (index:number, dateStr?: string) => {
+  const openLog = useCallback((index:number, dateStr?: string) => {
     setVariantSheetIdx(null);
     setLogOpen({ index });
     const dKey = dateStr || logDate || dateKeyLocal(); // keep provided date or existing modal date
     setLogDate(dKey);
     loadLogFor(dKey, index);
-  };
+  }, [logDate]);
   // Consume intent from calendar (open log modal for specific date/day)
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -560,7 +582,7 @@ useEffect(()=>{
         openLog(intent.exId ?? 0, intent.date);
       }, 0);
     } catch {}
-  },[]);
+  },[openLog]);
   const saveLog = () => {
     if (!logOpen) return;
     if (typeof window !== "undefined") {
@@ -570,7 +592,7 @@ useEffect(()=>{
       const payload = JSON.stringify(logRows);
       localStorage.setItem(newKey, payload);
       try { localStorage.setItem(oldKey, payload); } catch {}
-      try { (window as any)?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success"); } catch {}
+      try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success"); } catch {}
     }
     setLogOpen(null);
   };
@@ -597,9 +619,9 @@ useEffect(()=>{
       try { localStorage.setItem(`variants_${active}`, JSON.stringify(next)); } catch {}
       try {
         const compact: Record<string, string> = {};
-        Object.keys(next).forEach(k => {
+        Object.entries(next).forEach(([k, val]) => {
           const ix = k.split("_").pop();
-          if (ix != null) compact[ix] = (next as any)[k];
+          if (ix != null) compact[ix] = val;
         });
         localStorage.setItem(`variants_${active}_byIndex`, JSON.stringify(compact));
       } catch {}
@@ -648,20 +670,20 @@ useEffect(()=>{
       }
     }
     return groups;
-  }, [currentDay]);
+  }, [rawBlocks]);
   const alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   // Mini-resume: total sets for the day (sum of declared sets)
   const totalSetsPlanned = useMemo(
     () => rawBlocks.reduce((acc, b) => acc + parseSets(b.sets), 0),
-    [currentDay]
+    [rawBlocks]
   );
 
   // Flat list with stable ids
   type FlatExercise = { id: number; title: string; sets?: string };
   const flatList: FlatExercise[] = useMemo(() => {
     return rawBlocks.map((b, i) => ({ id: i, title: b.title, sets: b.sets }));
-  }, [currentDay]);
+  }, [rawBlocks]);
 
   const lessonsRef = useRef<HTMLDivElement | null>(null);
   const scrollToLessons = (e?: React.MouseEvent) => {
