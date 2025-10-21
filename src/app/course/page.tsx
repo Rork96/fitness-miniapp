@@ -526,15 +526,6 @@ useEffect(()=>{
   const goPrev = () => setActive(prev => Math.max(1, prev-1));
   const goNext = () => setActive(prev => Math.min(3, prev+1));
 
-  const onToggleDay = async () => {
-    try{
-      const p = await toggleDayDoneSafe(active);
-      setDone(p?.done || []);
-    }catch{
-      const p = (toggleDayDoneSafe as (d:number)=>ProgressResp)(active);
-      setDone(p?.done || []);
-    }
-  };
 
   // ---- VIDEO MODAL ----
   const [videoOpen, setVideoOpen] = useState(false);
@@ -566,7 +557,7 @@ useEffect(()=>{
     const dKey = dateStr || logDate || dateKeyLocal(); // keep provided date or existing modal date
     setLogDate(dKey);
     loadLogFor(dKey, index);
-  }, [logDate]);
+  }, [logDate, dateKeyLocal, loadLogFor]);
   // Consume intent from calendar (open log modal for specific date/day)
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -1036,6 +1027,11 @@ function ExerciseRow({
   const [open, setOpen] = useState(false);
   const startX = useRef<number | null>(null);
 
+  // Local haptic helper
+  const hapticLight = () => {
+    try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
+  };
+
   const onTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
   };
@@ -1050,7 +1046,7 @@ function ExerciseRow({
     if (startX.current === null) return;
     const willOpen = swipeX < -48;
     setOpen(willOpen);
-    if (willOpen) haptic("light");
+    if (willOpen) hapticLight();
     setSwipeX(0);
     startX.current = null;
   };

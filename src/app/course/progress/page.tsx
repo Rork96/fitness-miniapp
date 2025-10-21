@@ -168,7 +168,7 @@ export default function Progress() {
   const selectedKey = useMemo(() => (selected ? keyOf(selected) : null), [selected]);
 
   // Recompute streaks on mount and when navigating months (cheap enough)
-  const { currentStreak, bestStreak } = useMemo(() => computeStreaks(180), [monthBase]);
+  const { currentStreak, bestStreak } = useMemo(() => computeStreaks(180), []);
 
   const year = monthBase.getFullYear();
   const month = monthBase.getMonth();
@@ -193,7 +193,7 @@ export default function Progress() {
   const summary: DaySummary | null = useMemo(() => {
     if (!selected) return null;
     return readDaySummaryForDate(selected, { includeLegacy: true });
-  }, [selected, monthBase]);
+  }, [selected]);
 
   // Focus and scroll the selected day into view
   useEffect(() => {
