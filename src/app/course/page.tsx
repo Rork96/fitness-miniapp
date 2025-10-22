@@ -1163,7 +1163,7 @@ function LogModal({
               </label>
               <label className="col-span-3 text-xs opacity-80">раз
                 <input
-                  ref={el=>repsInputs.current[i]=el}
+                  ref={(el) => { repsInputs.current[i] = el; }}
                   value={row.reps}
                   onChange={e=>updateRow(i,"reps",e.target.value)}
                   onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); i===logRows.length-1 ? cloneLast() : focusNext(i); }}}
