@@ -1,6 +1,5 @@
 
  "use client";
-import Link from "next/link";
 import BottomBar from "@/components/BottomBar";
 import Script from "next/script";
 import { getProgress, toggleDayDone } from "@/lib/storage";
@@ -13,10 +12,6 @@ import {
   Plus as IconPlus,
   ChevronDown as IconChevronDown,
   Settings as IconSettings,
-  Joystick as IconJoystick,
-  CalendarDays as IconCalendarDays,
-  Calculator as IconCalculator,
-  GraduationCap as IconGraduationCap,
 } from "lucide-react";
 
 declare global {
@@ -558,7 +553,15 @@ useEffect(()=>{
     const dKey = dateStr || logDate || dateKeyLocal(); // keep provided date or existing modal date
     setLogDate(dKey);
     loadLogFor(dKey, index);
-  }, [logDate, dateKeyLocal, loadLogFor]);
+  }, [logDate]);
+  const onRowTouchEnd = useCallback((idx:number) => (e: React.TouchEvent) => {
+    if (rowStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - rowStartX.current;
+    rowStartX.current = null;
+    if (dx < -48) {
+      openLog(idx);
+    }
+  }, [openLog]);
   // Consume intent from calendar (open log modal for specific date/day)
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -677,6 +680,8 @@ useEffect(()=>{
     return rawBlocks.map((b, i) => ({ id: i, title: b.title, sets: b.sets }));
   }, [rawBlocks]);
 
+  const rowStartX = useRef<number | null>(null);
+  const onRowTouchStart = (e: React.TouchEvent) => { rowStartX.current = e.touches[0].clientX; };
   const lessonsRef = useRef<HTMLDivElement | null>(null);
   const scrollToLessons = (e?: React.MouseEvent) => {
     e?.preventDefault?.();
@@ -689,10 +694,11 @@ useEffect(()=>{
       <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       {/* Floating TIMER with presets 2->10 */}
       <div
-        className="fixed z-30 select-none"
+        className="fixed z-30 select-none pointer-events-auto"
         style={{
-          left: "16px",
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)"
+          left: "12px",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+          maxWidth: "calc(100vw - 24px)"
         }}
       >
         {/* When running: show one big time bubble above the FAB */}
@@ -708,9 +714,10 @@ useEffect(()=>{
         {fabOpen && !running && (
           <div className="flex flex-col items-start gap-3 mb-3">
             {PRESETS.map((m)=>(
-              <button key={m}
+              <button
+                key={m}
                 onClick={()=>startPreset(m)}
-                className="h-14 w-14 rounded-full bg-neutral-900 border border-neutral-800 shadow-md flex items-center justify-center text-white text-xl font-extrabold"
+                className="h-12 w-12 rounded-full bg-neutral-900 border border-neutral-800 shadow-md flex items-center justify-center text-white text-lg font-extrabold"
               >
                 {m}
               </button>
@@ -776,6 +783,24 @@ useEffect(()=>{
         );
       })()}
 
+      <section className="flex gap-2 items-center justify-between">
+        <div className="text-sm opacity-80">Інтенсивність</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setIntensity("light")}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold ${intensity === "light" ? "bg-lime-500 text-neutral-900" : "bg-neutral-900 text-white/80"}`}
+          >
+            Легке
+          </button>
+          <button
+            onClick={() => setIntensity("heavy")}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold ${intensity === "heavy" ? "bg-lime-500 text-neutral-900" : "bg-neutral-900 text-white/80"}`}
+          >
+            Важке
+          </button>
+        </div>
+      </section>
+
       {/* PROGRESS HEADER */}
       <section id="start" className="rounded-2xl bg-neutral-900 p-5">
         <div className="flex items-center justify-between">
@@ -792,24 +817,6 @@ useEffect(()=>{
           {percent < 100 ? (
             <>Наступна позначка: <span className="font-semibold">{percent < 25 ? "25%" : percent < 50 ? "50%" : percent < 75 ? "75%" : "100%"}</span></>
           ) : "Курс завершено — ти топ!"}
-        </div>
-      </section>
-
-      <section className="rounded-2xl bg-neutral-900 p-4">
-        <div className="text-sm font-semibold mb-3">Інтенсивність дня</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setIntensity("light")}
-            className={`rounded-xl py-3 font-extrabold ${intensity==="light" ? "bg-lime-500 text-neutral-900" : "bg-neutral-800 text-white/80"}`}
-          >
-            Легке
-          </button>
-          <button
-            onClick={() => setIntensity("heavy")}
-            className={`rounded-xl py-3 font-extrabold ${intensity==="heavy" ? "bg-lime-500 text-neutral-900" : "bg-neutral-800 text-white/80"}`}
-          >
-            Важке
-          </button>
         </div>
       </section>
 
@@ -934,6 +941,8 @@ useEffect(()=>{
                           openVideo={openVideo}
                           openLog={openLog}
                           onOpenVariant={(i) => setVariantSheetIdx(i)}
+                          onRowTouchStart={onRowTouchStart}
+                          onRowTouchEnd={onRowTouchEnd(id)}
                         />
                       );
                     })}
@@ -961,6 +970,8 @@ useEffect(()=>{
                   openVideo={openVideo}
                   openLog={openLog}
                   onOpenVariant={(i)=>setVariantSheetIdx(i)}
+                  onRowTouchStart={onRowTouchStart}
+                  onRowTouchEnd={onRowTouchEnd(ex.id)}
                 />
               ))}
             </ul>
@@ -1036,7 +1047,7 @@ useEffect(()=>{
 
 // --- ExerciseRow with swipe-to-reveal and bottom-sheet variant menu ---
 function ExerciseRow({
-  idx, title, planned, done, openVideo, openLog, onOpenVariant
+  idx, title, planned, done, openVideo, openLog, onOpenVariant, onRowTouchStart, onRowTouchEnd
 }:{
   idx:number;
   title:string;
@@ -1045,6 +1056,8 @@ function ExerciseRow({
   openVideo:(src?:string)=>void;
   openLog:(idx:number, dateStr?:string)=>void;
   onOpenVariant:(idx:number)=>void;
+  onRowTouchStart?:(e: React.TouchEvent)=>void;
+  onRowTouchEnd?:(e: React.TouchEvent)=>void;
 }) {
   const [swipeX, setSwipeX] = useState(0);
   const [open, setOpen] = useState(false);
@@ -1057,6 +1070,7 @@ function ExerciseRow({
 
   const onTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
+    onRowTouchStart?.(e);
   };
   const onTouchMove = (e: React.TouchEvent) => {
     if (startX.current === null) return;
@@ -1065,13 +1079,17 @@ function ExerciseRow({
     const next = Math.min(0, Math.max(-96, dx)); // cap to -96px
     setSwipeX(next);
   };
-  const onTouchEnd = () => {
-    if (startX.current === null) return;
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (startX.current === null) {
+      onRowTouchEnd?.(e);
+      return;
+    }
     const willOpen = swipeX < -48;
     setOpen(willOpen);
     if (willOpen) hapticLight();
     setSwipeX(0);
     startX.current = null;
+    onRowTouchEnd?.(e);
   };
   // Add revealed boolean after touch handlers, before return
   const revealed = open || swipeX < 0;
@@ -1105,7 +1123,9 @@ function ExerciseRow({
         className={`relative flex items-center justify-between rounded-lg bg-neutral-800 px-3 py-3 transition-transform`}
         style={{ transform: `translateX(${open ? -96 : 0}px) translateX(${swipeX}px)` }}
       >
-        <span className="pr-3">{title}</span>
+        <div className="font-medium break-words leading-tight max-w-[76%] pr-3">
+          {title}
+        </div>
         {typeof planned !== "undefined" && (
           <span className={`ml-auto mr-2 text-xs rounded-md px-2 py-0.5 ${!done ? "bg-neutral-700 text-white/80" : (done! < (planned||0) ? "bg-amber-500/80 text-neutral-900" : "bg-green-500/90 text-neutral-900")}`}>
             {done ?? 0}/{planned}

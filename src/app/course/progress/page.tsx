@@ -296,7 +296,7 @@ export default function Progress() {
                   <span className="absolute bottom-1 right-1 text-[10px] opacity-80">{total}</span>
                 )}
                 {total === 0 && mapDateToProgramDay(cell.date!) && (
-                  <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full bg-white/90 text-neutral-900 text-[10px] leading-3 font-bold flex items-center justify-center" aria-label="Додати підхід">+</span>
+                  <span className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-white/90 text-neutral-900 text-[10px] leading-3 font-bold flex items-center justify-center" aria-label="Додати підхід">+</span>
                 )}
               </button>
             );
@@ -361,7 +361,7 @@ export default function Progress() {
                 <li key={i} className="rounded-lg bg-neutral-800/60 border border-neutral-700 p-3">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-y-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-                      <div className="font-medium truncate max-w-[160px] sm:max-w-xs">{ex.title}</div>
+                      <div className="font-medium break-words leading-tight">{ex.title}</div>
                       <span className="text-xs opacity-70">{ex.sets} підход(и/ів)</span>
                       {selectedKey && summary.programDay !== null && (
                         <button
