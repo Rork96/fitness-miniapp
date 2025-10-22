@@ -3,6 +3,7 @@
 import Link from "next/link";
 import BottomBar from "@/components/BottomBar";
 import Image from "next/image";
+import Script from "next/script";
 import { getProgress, toggleDayDone } from "@/lib/storage";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
@@ -58,10 +59,10 @@ export default function Lessons(){
   // ---- BANNERS (auto-rotate with background images) ----
   type Banner = { title: string; cta: string; href: string; img?: string };
   const banners: Banner[] = [
-    { title: "Ласкаво\nПросимо! 👋", cta: "Розпочати тренування", href: "#start", img: "/banners/coach-1.webp" },
-    { title: "ПРОРАХУЙ ДЕННУ\nНОРМУ 🔥 КАЛОРІЙ", cta: "ПЕРЕЙТИ ДО РОЗРАХУНКУ", href: "/course/tools", img: "/banners/tools.webp" },
-    { title: "ОБОВЯЗКОВО ОЗНАЙОМСЯ\nБАЗА 💡 ЗНАНЬ", cta: "В БАЗУ ЗНАНЬ", href: "/course/knowledge", img: "/banners/knowledge.webp" },
-    { title: "РОЗБЛОКУЙ ВСІ 🔐 МОЖЛИВОСТІ", cta: "ПЕРЕЙТИ НА САЙТ", href: "https://example.com", img: "/banners/unlock.webp" },
+    { title: "Ласкаво\nПросимо! 👋", cta: "Розпочати тренування", href: "#start", img: "/banners/coach-1.png" },
+    { title: "ПРОРАХУЙ ДЕННУ\nНОРМУ 🔥 КАЛОРІЙ", cta: "ПЕРЕЙТИ ДО РОЗРАХУНКУ", href: "/course/tools", img: "/banners/tools.png" },
+    { title: "ОБОВЯЗКОВО ОЗНАЙОМСЯ\nБАЗА 💡 ЗНАНЬ", cta: "В БАЗУ ЗНАНЬ", href: "/course/knowledge", img: "/banners/knowledge.png" },
+    { title: "РОЗБЛОКУЙ ВСІ 🔐 МОЖЛИВОСТІ", cta: "ПЕРЕЙТИ НА САЙТ", href: "https://example.com", img: "/banners/unlock.png" },
   ];
   const [bannerIdx, setBannerIdx] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -685,6 +686,7 @@ useEffect(()=>{
   // Render
   return (
     <main className="max-w-md mx-auto p-4 space-y-4 pb-28">
+      <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       {/* Floating TIMER with presets 2->10 */}
       <div
         className="fixed z-30 select-none"
@@ -739,14 +741,16 @@ useEffect(()=>{
               onTouchEnd={onTouchEnd}
               className="relative h-[280px] md:h-[300px] overflow-hidden"
             >
-              <Image
-                src={bannerImg}
-                alt=""
-                fill
-                priority
-                sizes="(max-width: 768px) 100vw, 480px"
-                className="object-cover"
-              />
+              {(() => {
+                const png = bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.webp$/i, ".png");
+                const webp = png.replace(/\.png$/i, ".webp");
+                return (
+                  <picture>
+                    <source srcSet={webp} type="image/webp" />
+                    <img src={png} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  </picture>
+                );
+              })()}
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70" />
               <div className="absolute inset-0 flex flex-col justify-end p-5 text-white">
                 <h2 className="text-3xl font-extrabold leading-tight whitespace-pre-line">
