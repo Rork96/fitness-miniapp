@@ -296,7 +296,7 @@ export default function Progress() {
                   <span className="absolute bottom-1 right-1 text-[10px] opacity-80">{total}</span>
                 )}
                 {total === 0 && mapDateToProgramDay(cell.date!) && (
-                  <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-white/90 text-neutral-900 text-[12px] leading-4 font-bold flex items-center justify-center" aria-label="Додати підхід">+</span>
+                  <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full bg-white/90 text-neutral-900 text-[10px] leading-3 font-bold flex items-center justify-center" aria-label="Додати підхід">+</span>
                 )}
               </button>
             );

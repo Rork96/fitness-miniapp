@@ -2,7 +2,6 @@
  "use client";
 import Link from "next/link";
 import BottomBar from "@/components/BottomBar";
-import Image from "next/image";
 import Script from "next/script";
 import { getProgress, toggleDayDone } from "@/lib/storage";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -50,6 +49,7 @@ export default function Lessons(){
   const [level,setLevel]=useState<Level>("beginner");
   const [track,setTrack]=useState<Track>("gym");
   const [supersets,setSupersets]=useState(true);
+  const [intensity, setIntensity] = useState<"light" | "heavy">("light");
   const [openInstr, setOpenInstr] = useState(false);
   const [openNav, setOpenNav] = useState(false);
 
@@ -691,7 +691,7 @@ useEffect(()=>{
       <div
         className="fixed z-30 select-none"
         style={{
-          left: "calc(50% - 208px)",  // 448px/2 - 16px padding ≈ 208px
+          left: "16px",
           bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)"
         }}
       >
@@ -741,16 +741,12 @@ useEffect(()=>{
               onTouchEnd={onTouchEnd}
               className="relative h-[280px] md:h-[300px] overflow-hidden"
             >
-              {(() => {
-                const png = bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.webp$/i, ".png");
-                const webp = png.replace(/\.png$/i, ".webp");
-                return (
-                  <picture>
-                    <source srcSet={webp} type="image/webp" />
-                    <img src={png} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                  </picture>
-                );
-              })()}
+              {/* Фонове зображення банера тільки PNG */}
+              <img
+                src={bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.webp$/i, ".png")}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70" />
               <div className="absolute inset-0 flex flex-col justify-end p-5 text-white">
                 <h2 className="text-3xl font-extrabold leading-tight whitespace-pre-line">
@@ -796,6 +792,24 @@ useEffect(()=>{
           {percent < 100 ? (
             <>Наступна позначка: <span className="font-semibold">{percent < 25 ? "25%" : percent < 50 ? "50%" : percent < 75 ? "75%" : "100%"}</span></>
           ) : "Курс завершено — ти топ!"}
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-neutral-900 p-4">
+        <div className="text-sm font-semibold mb-3">Інтенсивність дня</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setIntensity("light")}
+            className={`rounded-xl py-3 font-extrabold ${intensity==="light" ? "bg-lime-500 text-neutral-900" : "bg-neutral-800 text-white/80"}`}
+          >
+            Легке
+          </button>
+          <button
+            onClick={() => setIntensity("heavy")}
+            className={`rounded-xl py-3 font-extrabold ${intensity==="heavy" ? "bg-lime-500 text-neutral-900" : "bg-neutral-800 text-white/80"}`}
+          >
+            Важке
+          </button>
         </div>
       </section>
 
@@ -880,7 +894,12 @@ useEffect(()=>{
       {/* current day content */}
       <section className="space-y-3">
         <div className="rounded-2xl bg-neutral-900 p-4 border border-neutral-800">
-          <div className="font-bold opacity-90">{currentDay?.title}</div>
+          <div className="font-bold opacity-90 flex items-center">
+            <span>{currentDay?.title}</span>
+            <span className="ml-2 inline-flex items-center rounded-md bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-xs">
+              {intensity === "light" ? "Легке" : "Важке"}
+            </span>
+          </div>
           <div className="mt-1 text-xs opacity-70">План: <span className="font-semibold">{totalSetsPlanned}</span> підходів</div>
         </div>
         {/* Supersets ON -> grouped; OFF -> flat list */}
