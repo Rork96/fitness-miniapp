@@ -216,12 +216,12 @@ export default function Progress() {
   return (
     <main className="max-w-md mx-auto p-4 space-y-4 pb-28">
       <header className="rounded-2xl bg-neutral-900 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <IconCalendarDays className="text-white" size={20} />
             <h1 className="text-xl font-extrabold">Щоденник тренувань</h1>
           </div>
-          <div className="text-xs opacity-80">
+          <div className="text-xs opacity-80 text-right sm:text-left">
             Серія: <span className="font-semibold">{currentStreak}</span> • Рекорд: <span className="font-semibold">{bestStreak}</span>
           </div>
         </div>
@@ -359,20 +359,18 @@ export default function Progress() {
             <ul className="mt-3 space-y-2">
               {summary.exercises.map((ex, i) => (
                 <li key={i} className="rounded-lg bg-neutral-800/60 border border-neutral-700 p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-y-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-                      <div className="font-medium break-words leading-tight">{ex.title}</div>
-                      <span className="text-xs opacity-70">{ex.sets} підход(и/ів)</span>
-                      {selectedKey && summary.programDay !== null && (
-                        <button
-                          onClick={() => toLog(selectedKey!, summary.programDay!, i)}
-                          className="ml-3 shrink-0 rounded-lg bg-lime-500 text-neutral-900 text-xs px-3 py-1 inline-flex items-center gap-1"
-                          aria-label="Перейти до логів вправи"
-                        >
-                          Запис <IconArrowRight size={14} />
-                        </button>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0 font-medium leading-tight line-clamp-2">{ex.title}</div>
+                    <span className="shrink-0 text-xs opacity-70">{ex.sets} підход(и/ів)</span>
+                    {selectedKey && summary.programDay !== null && (
+                      <button
+                        onClick={() => toLog(selectedKey!, summary.programDay!, i)}
+                        className="ml-3 shrink-0 rounded-lg bg-lime-500 text-neutral-900 text-xs px-3 py-1 inline-flex items-center gap-1"
+                        aria-label="Перейти до логів вправи"
+                      >
+                        Запис <IconArrowRight size={14} />
+                      </button>
+                    )}
                   </div>
                   {ex.last && (
                     <div className="mt-2 text-xs opacity-80">

@@ -195,6 +195,23 @@ export default function Lessons(){
     }
   };
 
+  const guessNextIntensity = useCallback((day:number): "light"|"heavy" => {
+    if (typeof window === "undefined") return "light";
+    const today = new Date();
+    for (let i=0; i<180; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      const key = `intensity_at_${y}-${m}-${dd}_${day}`;
+      const v = localStorage.getItem(key) as ("light"|"heavy"|null);
+      if (v === "heavy") return "light";
+      if (v === "light") return "heavy";
+    }
+    return "light";
+  }, []);
+
   // Load local progress
   useEffect(()=>{
     (async ()=>{
@@ -507,13 +524,14 @@ useEffect(()=>{
         for (let i = 0; i < 3; ++i) {
           setsMap[String(i + 1)] = (program.days[i]?.exercises ?? []).map(ex => {
             const m = ex.sets?.match(/(\d+)\s*[x×\*]/i);
-            return m ? Number(m[1]) : 0;
+            const base = m ? Number(m[1]) : 0;
+            return intensity === "heavy" ? base + 1 : Math.max(0, base - 1);
           });
         }
         localStorage.setItem("program_sets", JSON.stringify(setsMap));
       } catch {}
     } catch {}
-  }, [program.level, program.track, program.days]);
+  }, [program.level, program.track, program.days, intensity]);
   const totalDays = 21;
   const percent = useMemo(()=> Math.min(100, Math.round((done.length/totalDays)*100)), [done.length]);
   const currentDay = program.days[Math.max(0, Math.min(2, active-1))];
@@ -554,14 +572,6 @@ useEffect(()=>{
     setLogDate(dKey);
     loadLogFor(dKey, index);
   }, [logDate]);
-  const onRowTouchEnd = useCallback((idx:number) => (e: React.TouchEvent) => {
-    if (rowStartX.current == null) return;
-    const dx = e.changedTouches[0].clientX - rowStartX.current;
-    rowStartX.current = null;
-    if (dx < -48) {
-      openLog(idx);
-    }
-  }, [openLog]);
   // Consume intent from calendar (open log modal for specific date/day)
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -578,6 +588,10 @@ useEffect(()=>{
       }, 0);
     } catch {}
   },[openLog]);
+
+  useEffect(()=>{
+    setIntensity(guessNextIntensity(active));
+  }, [active, guessNextIntensity]);
   const saveLog = () => {
     if (!logOpen) return;
     if (typeof window !== "undefined") {
@@ -588,6 +602,7 @@ useEffect(()=>{
       localStorage.setItem(newKey, payload);
       try { localStorage.setItem(oldKey, payload); } catch {}
       try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.("success"); } catch {}
+      try { localStorage.setItem(`intensity_at_${logDate}_${active}`, intensity); } catch {}
     }
     setLogOpen(null);
   };
@@ -680,8 +695,20 @@ useEffect(()=>{
     return rawBlocks.map((b, i) => ({ id: i, title: b.title, sets: b.sets }));
   }, [rawBlocks]);
 
-  const rowStartX = useRef<number | null>(null);
-  const onRowTouchStart = (e: React.TouchEvent) => { rowStartX.current = e.touches[0].clientX; };
+  const longPressRef = useRef<NodeJS.Timeout | null>(null);
+  const onLongPressStart = (i:number) => () => {
+    if (longPressRef.current) clearTimeout(longPressRef.current);
+    longPressRef.current = setTimeout(()=> {
+      setVariantSheetIdx(i);
+      longPressRef.current = null;
+    }, 450);
+  };
+  const onLongPressEnd = () => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  };
   const lessonsRef = useRef<HTMLDivElement | null>(null);
   const scrollToLessons = (e?: React.MouseEvent) => {
     e?.preventDefault?.();
@@ -696,8 +723,8 @@ useEffect(()=>{
       <div
         className="fixed z-30 select-none pointer-events-auto"
         style={{
-          left: "12px",
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)",
+          right: "12px",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 88px)",
           maxWidth: "calc(100vw - 24px)"
         }}
       >
@@ -712,12 +739,12 @@ useEffect(()=>{
 
         {/* When menu is open and not running: show vertical presets */}
         {fabOpen && !running && (
-          <div className="flex flex-col items-start gap-3 mb-3">
+          <div className="flex flex-col items-end gap-2 mb-3 max-h-[60vh] overflow-auto pr-1">
             {PRESETS.map((m)=>(
               <button
                 key={m}
                 onClick={()=>startPreset(m)}
-                className="h-12 w-12 rounded-full bg-neutral-900 border border-neutral-800 shadow-md flex items-center justify-center text-white text-lg font-extrabold"
+                className="h-10 w-10 rounded-full bg-neutral-900 border border-neutral-800 shadow-md flex items-center justify-center text-white text-base font-extrabold"
               >
                 {m}
               </button>
@@ -729,7 +756,7 @@ useEffect(()=>{
         <button
           aria-label={(fabOpen || running) ? "Закрити таймер/меню" : "Відкрити меню таймера"}
           onClick={onFabClick}
-          className="h-16 w-16 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center shadow-lg text-white"
+          className="h-14 w-14 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center shadow-lg text-white"
         >
           {(fabOpen || running)
             ? <IconX size={28} />
@@ -750,32 +777,36 @@ useEffect(()=>{
             >
               {/* Фонове зображення банера тільки PNG */}
               <img
-                src={bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.webp$/i, ".png")}
+                src={bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.(webp|jpg|jpeg)$/i, ".png")}
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70" />
-              <div className="absolute inset-0 flex flex-col justify-end p-5 text-white">
-                <h2 className="text-3xl font-extrabold leading-tight whitespace-pre-line">
-                  {banners[bannerIdx].title}
-                </h2>
-                <a
-                  href="#lessons"
-                  onClick={scrollToLessons}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-white text-neutral-900 font-extrabold py-3 transition-transform active:scale-[0.98]"
-                >
-                  {banners[bannerIdx].cta}
-                </a>
-                <div className="mt-4 flex items-center gap-3">
-                  {banners.map((_,i)=>(
-                    <button
-                      key={i}
-                      onClick={()=>setBannerIdx(i)}
-                      aria-label={`Перейти до банера ${i+1}`}
-                      aria-current={i===bannerIdx ? "true" : undefined}
-                      className={`h-2 rounded-full transition-all focus:outline-none ${i===bannerIdx?'w-16 bg-white/90':'w-8 bg-white/30 hover:w-16 hover:bg-white/60 focus:ring-2 focus:ring-white/70'}`}
-                    />
-                  ))}
+              <div className="absolute inset-0 flex flex-col justify-between p-5 pt-6 pb-5 text-white">
+                <div>
+                  <h2 className="text-3xl font-extrabold leading-tight whitespace-pre-line">
+                    {banners[bannerIdx].title}
+                  </h2>
+                </div>
+                <div>
+                  <a
+                    href="#lessons"
+                    onClick={scrollToLessons}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-white text-neutral-900 font-extrabold py-3 transition-transform active:scale-[0.98]"
+                  >
+                    {banners[bannerIdx].cta}
+                  </a>
+                  <div className="mt-4 flex items-center gap-3">
+                    {banners.map((_,i)=>(
+                      <button
+                        key={i}
+                        onClick={()=>setBannerIdx(i)}
+                        aria-label={`Перейти до банера ${i+1}`}
+                        aria-current={i===bannerIdx ? "true" : undefined}
+                        className={`h-2 rounded-full transition-all focus:outline-none ${i===bannerIdx?'w-16 bg-white/90':'w-8 bg-white/30 hover:w-16 hover:bg-white/60 focus:ring-2 focus:ring-white/70'}`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -941,8 +972,8 @@ useEffect(()=>{
                           openVideo={openVideo}
                           openLog={openLog}
                           onOpenVariant={(i) => setVariantSheetIdx(i)}
-                          onRowTouchStart={onRowTouchStart}
-                          onRowTouchEnd={onRowTouchEnd(id)}
+                          onLongPressStart={onLongPressStart(id)}
+                          onLongPressEnd={onLongPressEnd}
                         />
                       );
                     })}
@@ -970,8 +1001,8 @@ useEffect(()=>{
                   openVideo={openVideo}
                   openLog={openLog}
                   onOpenVariant={(i)=>setVariantSheetIdx(i)}
-                  onRowTouchStart={onRowTouchStart}
-                  onRowTouchEnd={onRowTouchEnd(ex.id)}
+                  onLongPressStart={onLongPressStart(ex.id)}
+                  onLongPressEnd={onLongPressEnd}
                 />
               ))}
             </ul>
@@ -1045,9 +1076,9 @@ useEffect(()=>{
   );
 }
 
-// --- ExerciseRow with swipe-to-reveal and bottom-sheet variant menu ---
+// --- ExerciseRow with long-press variant sheet and inline actions ---
 function ExerciseRow({
-  idx, title, planned, done, openVideo, openLog, onOpenVariant, onRowTouchStart, onRowTouchEnd
+  idx, title, planned, done, openVideo, openLog, onOpenVariant, onLongPressStart, onLongPressEnd
 }:{
   idx:number;
   title:string;
@@ -1056,72 +1087,19 @@ function ExerciseRow({
   openVideo:(src?:string)=>void;
   openLog:(idx:number, dateStr?:string)=>void;
   onOpenVariant:(idx:number)=>void;
-  onRowTouchStart?:(e: React.TouchEvent)=>void;
-  onRowTouchEnd?:(e: React.TouchEvent)=>void;
+  onLongPressStart?:(e?:unknown)=>void;
+  onLongPressEnd?:(e?:unknown)=>void;
 }) {
-  const [swipeX, setSwipeX] = useState(0);
-  const [open, setOpen] = useState(false);
-  const startX = useRef<number | null>(null);
-
-  // Local haptic helper
-  const hapticLight = () => {
-    try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); } catch {}
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-    onRowTouchStart?.(e);
-  };
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (startX.current === null) return;
-    const dx = e.touches[0].clientX - startX.current;
-    // reveal on left swipe
-    const next = Math.min(0, Math.max(-96, dx)); // cap to -96px
-    setSwipeX(next);
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (startX.current === null) {
-      onRowTouchEnd?.(e);
-      return;
-    }
-    const willOpen = swipeX < -48;
-    setOpen(willOpen);
-    if (willOpen) hapticLight();
-    setSwipeX(0);
-    startX.current = null;
-    onRowTouchEnd?.(e);
-  };
-  // Add revealed boolean after touch handlers, before return
-  const revealed = open || swipeX < 0;
-
   return (
     <li
       className="relative overflow-hidden"
       data-ex-id={idx}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      onPointerDown={onLongPressStart}
+      onPointerUp={onLongPressEnd}
+      onPointerCancel={onLongPressEnd}
     >
-      {/* Actions revealed */}
       <div
-        className={`absolute inset-y-0 right-0 flex items-stretch gap-1 pr-1 transition-opacity ${revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-        aria-hidden={!revealed}
-      >
-        <button onClick={()=>onOpenVariant(idx)} className="my-1 h-[42px] w-[42px] rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white">
-          <IconRefreshCw size={18} />
-        </button>
-        <button onClick={()=>openVideo("/demo-video.mp4")} className="my-1 h-[42px] w-[42px] rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white">
-          <IconPlay size={18} />
-        </button>
-        <button onClick={()=>openLog(idx)} className="my-1 h-[42px] w-[42px] rounded-lg bg-green-600 text-neutral-900 font-bold flex items-center justify-center">
-          <IconPlus size={18} />
-        </button>
-      </div>
-
-      {/* Row content */}
-      <div
-        className={`relative flex items-center justify-between rounded-lg bg-neutral-800 px-3 py-3 transition-transform`}
-        style={{ transform: `translateX(${open ? -96 : 0}px) translateX(${swipeX}px)` }}
+        className="relative flex items-center justify-between rounded-lg bg-neutral-800 px-3 py-3"
       >
         <div className="font-medium break-words leading-tight max-w-[76%] pr-3">
           {title}
@@ -1131,7 +1109,7 @@ function ExerciseRow({
             {done ?? 0}/{planned}
           </span>
         )}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <button onClick={()=>onOpenVariant(idx)} className="h-10 w-10 rounded-full bg-neutral-900 border border-neutral-700 flex items-center justify-center text-white" title="Заміна вправи">
             <IconRefreshCw size={18} />
           </button>
