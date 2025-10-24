@@ -17,14 +17,6 @@ import {
 declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
-    Telegram?: {
-      WebApp?: {
-        HapticFeedback?: {
-          impactOccurred?: (type: "light" | "medium" | "heavy") => void;
-          notificationOccurred?: (type: "success" | "warning" | "error") => void;
-        };
-      };
-    };
   }
 }
 
@@ -740,7 +732,7 @@ useEffect(()=>{
         {/* When menu is open and not running: show vertical presets */}
         {fabOpen && !running && (
           <div className="flex flex-col items-end gap-2 mb-3 max-h-[60vh] overflow-auto pr-1">
-            {PRESETS.map((m)=>(
+            {[...PRESETS].sort((a,b)=>a-b).map((m)=>(
               <button
                 key={m}
                 onClick={()=>startPreset(m)}
@@ -813,24 +805,6 @@ useEffect(()=>{
           </section>
         );
       })()}
-
-      <section className="flex gap-2 items-center justify-between">
-        <div className="text-sm opacity-80">Інтенсивність</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setIntensity("light")}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold ${intensity === "light" ? "bg-lime-500 text-neutral-900" : "bg-neutral-900 text-white/80"}`}
-          >
-            Легке
-          </button>
-          <button
-            onClick={() => setIntensity("heavy")}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold ${intensity === "heavy" ? "bg-lime-500 text-neutral-900" : "bg-neutral-900 text-white/80"}`}
-          >
-            Важке
-          </button>
-        </div>
-      </section>
 
       {/* PROGRESS HEADER */}
       <section id="start" className="rounded-2xl bg-neutral-900 p-5">
@@ -932,11 +906,8 @@ useEffect(()=>{
       {/* current day content */}
       <section className="space-y-3">
         <div className="rounded-2xl bg-neutral-900 p-4 border border-neutral-800">
-          <div className="font-bold opacity-90 flex items-center">
-            <span>{currentDay?.title}</span>
-            <span className="ml-2 inline-flex items-center rounded-md bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-xs">
-              {intensity === "light" ? "Легке" : "Важке"}
-            </span>
+          <div className="font-bold opacity-90">
+            {currentDay?.title}
           </div>
           <div className="mt-1 text-xs opacity-70">План: <span className="font-semibold">{totalSetsPlanned}</span> підходів</div>
         </div>
