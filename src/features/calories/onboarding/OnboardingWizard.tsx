@@ -1,25 +1,10 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  CalendarCheck,
-  Check,
-  Dumbbell,
-  ExternalLink,
-  Flame,
-  Globe,
-  Pencil,
-  ShieldCheck,
-  Sparkles,
-  Target,
-  Wheat,
-  Droplet,
-} from "lucide-react";
-import { SegmentedTabs, CardOption, ChecklistOption, ToggleCard } from "./ui/controls";
+import { Flame, ShieldCheck, Sparkles, Target, Wheat, Drumstick, Droplets, CalendarCheck, ExternalLink, Pencil } from "lucide-react";
+import { CardOption, ChecklistOption, ToggleCard } from "./ui/controls";
 import { StepShell } from "./ui/StepShell";
-import { StickyCTA } from "@/features/common/ui/StickyCTA";
 import { IconBadge } from "@/features/common/ui/IconBadge";
 import { WheelPicker, DualWheel } from "../../common/wheel/WheelPicker";
 import { RulerSlider } from "../../common/wheel/RulerSlider";
@@ -33,46 +18,24 @@ import {
   weightImperialRange,
   heightMetricRange,
   speedRange,
+  speedRangeImperial,
+  speedZonesMetric,
+  speedZonesImperial,
   speedThresholds,
   PROFILE_STORAGE_KEY,
 } from "./constants";
 import { caloriesUk } from "@/lib/i18n/calories.uk";
 import { caloriesEn } from "@/lib/i18n/calories.en";
-
-const Lottie = dynamic(() => import("lottie-react").then((mod) => mod.default), { ssr: false });
+import LoadingStage from "./LoadingStage";
+import { useHaptics } from "@/lib/useHaptics";
+import { RingCard } from "./ui/RingCard";
+import { EditMacroSheet } from "./ui/EditMacroSheet";
+import SpeedExact from "./ui/SpeedExact";
 
 type SpeedKey = "slow" | "recommended" | "aggressive";
-
-const lottieUrl: Record<SpeedKey, string> = {
-  slow: "/lottie/sloth.json",
-  recommended: "/lottie/rabbit.json",
-  aggressive: "/lottie/tiger.json",
-};
+type MacroKey = "calories" | "carbs_g" | "protein_g" | "fat_g";
 
 const dictionaries = { uk: caloriesUk, en: caloriesEn };
-
-function useLottie(url?: string) {
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!url) {
-      setData(null);
-      return;
-    }
-    fetch(url)
-      .then((response) => response.json())
-      .then((json) => {
-        if (!cancelled) setData(json);
-      })
-      .catch(() => {
-        if (!cancelled) setData(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-  return data;
-}
 
 
 export default function OnboardingWizard() {
@@ -80,11 +43,10 @@ export default function OnboardingWizard() {
   const dict = dictionaries[state.locale];
   const feetText = state.locale === "uk" ? "Фути" : "Feet";
   const inchesText = state.locale === "uk" ? "Дюйми" : "Inches";
+  const { tapLight, tapMedium } = useHaptics();
 
-  const [loadingPercent, setLoadingPercent] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [editingMacro, setEditingMacro] = useState<null | "calories" | "carbs_g" | "protein_g" | "fat_g">(null);
+  const [editingMacro, setEditingMacro] = useState<MacroKey | null>(null);
   const [plan, setPlan] = useState<PlanResult | null>(state.lastPlan);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const autosaveTimeoutRef = useRef<number | null>(null);
@@ -102,63 +64,6 @@ export default function OnboardingWizard() {
     monthOptions.find((option) => option.value === state.birth.month)?.label ?? monthOptions[0]?.label ?? "";
   const macrosOverrideKey = useMemo(() => JSON.stringify(state.macrosOverride ?? {}), [state.macrosOverride]);
 
-  useEffect(() => {
-    if (state.step === 13) {
-      setIsLoading(true);
-      setLoadingPercent(0);
-      const duration = 2000;
-      const start = performance.now();
-      const tick = (timestamp: number) => {
-        const elapsed = timestamp - start;
-        const pct = Math.min(100, Math.round((elapsed / duration) * 100));
-        setLoadingPercent(pct);
-        if (pct < 100) {
-          requestAnimationFrame(tick);
-        } else {
-          const computed = calculatePlan({
-            gender: state.gender ?? "female",
-            age,
-            heightCm: state.heightCm,
-            weightKg: state.weightKg,
-            desiredWeightKg: state.desiredWeightKg,
-            goal: state.goal ?? "maintain",
-            speedKgWeek: state.speedKgWeek,
-            activity: state.activity ?? "0-2",
-            allowRollover: state.allowRollover,
-            addExerciseBack: state.addBurnedBack,
-            overrides: state.macrosOverride,
-          });
-          setPlan(computed);
-          dispatch({ type: "setPlan", plan: computed });
-          setIsLoading(false);
-          setTimeout(() => {
-            next();
-            triggerHaptic("light");
-          }, 300);
-        }
-      };
-      requestAnimationFrame(tick);
-    } else {
-      setIsLoading(false);
-      setLoadingPercent(0);
-    }
-  }, [
-    age,
-    dispatch,
-    next,
-    state.activity,
-    state.allowRollover,
-    state.birth,
-    state.desiredWeightKg,
-    state.gender,
-    state.goal,
-    state.heightCm,
-    state.macrosOverride,
-    state.speedKgWeek,
-    state.step,
-    state.weightKg,
-    state.addBurnedBack,
-  ]);
 
   const desiredDiff = state.desiredWeightKg - state.weightKg;
   const desiredDiffAbs = Math.abs(desiredDiff);
@@ -167,8 +72,25 @@ export default function OnboardingWizard() {
   const speedKey = computeSpeedLabel(state.speedKgWeek);
   const speedLabel =
     speedKey === "slow" ? dict.speed.slow : speedKey === "recommended" ? dict.speed.recommended : dict.speed.aggressive;
-  const speedLottieData = useLottie(lottieUrl[speedKey]);
   const speedWarning = speedKey === "aggressive" ? (state.goal === "lose" ? dict.speed.warningLose : dict.speed.warningGain) : null;
+  const speedSubtitle =
+    desiredAction === "gain"
+      ? dict.speed.subtitleGain
+      : desiredAction === "lose"
+      ? dict.speed.subtitleLose
+      : dict.speed.subtitleMaintain;
+  const speedUnitLabel =
+    desiredAction === "gain"
+      ? dict.speed.perWeekGain
+      : desiredAction === "lose"
+      ? dict.speed.perWeekLose
+      : dict.speed.perWeekMaintain;
+  const speedDisplayValue =
+    state.units === "metric" ? state.speedKgWeek : Number(kgToLb(state.speedKgWeek).toFixed(1));
+  const speedDisplayRange = state.units === "metric" ? speedRange : speedRangeImperial;
+  const speedDisplayZones = state.units === "metric" ? speedZonesMetric : speedZonesImperial;
+  const speedTickLabels: [number, number, number] =
+    state.units === "metric" ? [0.1, 0.8, 1.5] : [0.2, 1.5, 3.0];
 
   const summaryLine = useMemo(() => {
     if (!plan) return dict.results.badgeMaintain;
@@ -184,13 +106,6 @@ export default function OnboardingWizard() {
       ? dict.results.badgeLose(desiredDiffAbs, formattedDate)
       : dict.results.badgeGain(desiredDiffAbs, formattedDate);
   }, [desiredAction, desiredDiffAbs, dict.results, plan, state.locale]);
-
-  const healthScore = useMemo(() => {
-    if (!plan) return 7;
-    const balance = plan.targetCalories / 350;
-    const proteinScore = plan.protein_g / (state.weightKg * 2);
-    return Math.min(10, Math.max(3, Math.round((balance + proteinScore * 4) / 2)));
-  }, [plan, state.weightKg]);
 
   const macroStats = useMemo(() => {
     if (!plan) return [];
@@ -227,7 +142,7 @@ export default function OnboardingWizard() {
         percent: Math.min(1, (plan.protein_g * 4) / safeCalories),
         tint: "#fb7185",
         badgeClassName: "bg-rose-400/15 text-rose-200",
-        icon: <Dumbbell size={18} />,
+        icon: <Drumstick size={18} />,
       },
       {
         key: "fat_g" as const,
@@ -238,37 +153,120 @@ export default function OnboardingWizard() {
         percent: Math.min(1, (plan.fat_g * 9) / safeCalories),
         tint: "#38bdf8",
         badgeClassName: "bg-sky-400/15 text-sky-200",
-        icon: <Droplet size={18} />,
+        icon: <Droplets size={18} />,
       },
     ];
     return entries;
   }, [dict.results.cards, plan]);
 
-  const loadingStages = useMemo(
-    () => [
-      { key: "custom", label: dict.loading.stageCustomize, threshold: 15 },
-      { key: "bmr", label: dict.loading.stageEstimate, threshold: 45 },
-      { key: "macros", label: dict.loading.stageMacros, threshold: 75 },
-      { key: "final", label: dict.loading.stageFinalize, threshold: 95 },
-    ],
-    [dict.loading.stageCustomize, dict.loading.stageEstimate, dict.loading.stageMacros, dict.loading.stageFinalize]
+  const ringAccentClass: Record<MacroKey, string> = {
+    calories: "stroke-black",
+    carbs_g: "stroke-amber-400",
+    protein_g: "stroke-rose-500",
+    fat_g: "stroke-sky-400",
+  };
+
+  const macroValueOptions = useMemo(
+    () => ({
+      calories: range(1200, 3900, 25),
+      carbs_g: range(10, 350, 5),
+      protein_g: range(10, 250, 5),
+      fat_g: range(10, 150, 5),
+    }),
+    []
   );
+
+  const computePlanWithOverrides = useCallback(
+    (overridesInput: Partial<Record<MacroKey, number | undefined>>) => {
+      const sanitized: Partial<Record<MacroKey, number>> = {};
+      (Object.keys(overridesInput) as MacroKey[]).forEach((key) => {
+        const val = overridesInput[key];
+        if (typeof val === "number" && Number.isFinite(val)) {
+          sanitized[key] = val;
+        }
+      });
+      return calculatePlan({
+        gender: state.gender ?? "female",
+        age,
+        heightCm: state.heightCm,
+        weightKg: state.weightKg,
+        desiredWeightKg: state.desiredWeightKg,
+        goal: state.goal ?? "maintain",
+        speedKgWeek: state.speedKgWeek,
+        activity: state.activity ?? "0-2",
+        allowRollover: state.allowRollover,
+        addExerciseBack: state.addBurnedBack,
+        overrides: sanitized,
+      });
+    },
+    [
+      age,
+      state.activity,
+      state.addBurnedBack,
+      state.allowRollover,
+      state.desiredWeightKg,
+      state.gender,
+      state.goal,
+      state.heightCm,
+      state.speedKgWeek,
+      state.weightKg,
+    ]
+  );
+
+  const applyMacroOverride = useCallback(
+    (key: MacroKey, value: number) => {
+      const updatedOverrides: Partial<Record<MacroKey, number | undefined>> = {
+        ...state.macrosOverride,
+        [key]: value,
+      };
+      dispatch({ type: "setMacrosOverride", payload: { [key]: value } });
+      const computed = computePlanWithOverrides(updatedOverrides);
+      setPlan(computed);
+      dispatch({ type: "setPlan", plan: computed });
+    },
+    [computePlanWithOverrides, dispatch, state.macrosOverride]
+  );
+
+  const revertMacroOverride = useCallback(
+    (key: MacroKey) => {
+      const updatedOverrides: Partial<Record<MacroKey, number | undefined>> = { ...state.macrosOverride };
+      delete updatedOverrides[key];
+      dispatch({ type: "setMacrosOverride", payload: { [key]: undefined } });
+      const computed = computePlanWithOverrides(updatedOverrides);
+      setPlan(computed);
+      dispatch({ type: "setPlan", plan: computed });
+    },
+    [computePlanWithOverrides, dispatch, state.macrosOverride]
+  );
+
+  const activeMacroStat = editingMacro ? macroStats.find((macro) => macro.key === editingMacro) ?? null : null;
+
+  const resourceLinks = [
+    {
+      label: "Basal metabolic rate — Healthline",
+      href: "https://www.healthline.com/health/what-is-basal-metabolic-rate",
+    },
+    {
+      label: "Calorie counting — Harvard",
+      href: "https://www.health.harvard.edu/staying-healthy/calorie-counting-made-easy",
+    },
+    { label: "ISSN — PubMed 28630601", href: "https://pubmed.ncbi.nlm.nih.gov/28630601/" },
+    { label: "NIH Guidelines (NHLBI)", href: "https://www.nhlbi.nih.gov/files/docs/guidelines/ob_gdlns.pdf" },
+  ];
 
   const handleLocaleToggle = useCallback(() => {
     const nextLocale = state.locale === "uk" ? "en" : "uk";
     dispatch({ type: "setLocale", locale: nextLocale });
   }, [dispatch, state.locale]);
 
-  const localeSwitch = (
-    <button
-      type="button"
-      onClick={handleLocaleToggle}
-      className="flex items-center gap-2 rounded-full bg-[hsl(var(--panel))] px-4 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10"
-    >
-      <Globe size={16} />
-      {state.locale === "uk" ? "UA" : "EN"}
-    </button>
-  );
+  const sheetValues = editingMacro ? macroValueOptions[editingMacro] : [];
+  const sheetUnit = activeMacroStat?.unit ?? "";
+  const sheetTitle = activeMacroStat?.label ?? "";
+  const sheetValue = activeMacroStat
+    ? editingMacro === "calories"
+      ? Math.round(activeMacroStat.value / 25) * 25
+      : Math.round(activeMacroStat.value / 5) * 5
+    : 0;
 
   const saveProfile = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -349,25 +347,59 @@ export default function OnboardingWizard() {
     [saveProfile]
   );
 
-  const canGoBack = state.step > 1 && !isLoading;
+  const canGoBack = state.step > 1 && state.step !== 13;
 
   const handleBack = useCallback(() => {
     if (!canGoBack) return;
-    triggerHaptic("light");
+    tapLight();
     prev();
-  }, [canGoBack, prev]);
+  }, [canGoBack, prev, tapLight]);
 
   const handleContinue = useCallback(() => {
+    tapLight();
     if (state.step === 13) return;
     if (state.step === MAX_STEP) {
       saveProfile();
       return;
     }
-    triggerHaptic("light");
     next();
-  }, [next, saveProfile, state.step]);
+  }, [next, saveProfile, state.step, tapLight]);
 
-  const backLabel = dict.buttons.back;
+  const handleLoadingDone = useCallback(() => {
+    const computed = calculatePlan({
+      gender: state.gender ?? "female",
+      age,
+      heightCm: state.heightCm,
+      weightKg: state.weightKg,
+      desiredWeightKg: state.desiredWeightKg,
+      goal: state.goal ?? "maintain",
+      speedKgWeek: state.speedKgWeek,
+      activity: state.activity ?? "0-2",
+      allowRollover: state.allowRollover,
+      addExerciseBack: state.addBurnedBack,
+      overrides: state.macrosOverride,
+    });
+    setPlan(computed);
+    dispatch({ type: "setPlan", plan: computed });
+    tapMedium();
+    next();
+  }, [
+    age,
+    dispatch,
+    next,
+    tapMedium,
+    state.activity,
+    state.addBurnedBack,
+    state.allowRollover,
+    state.desiredWeightKg,
+    state.gender,
+    state.goal,
+    state.heightCm,
+    state.macrosOverride,
+    state.speedKgWeek,
+    state.weightKg,
+  ]);
+
   const stepProgress = (state.step - 1) / (MAX_STEP - 1);
   const nextDisabled = !isStepValid(state);
 
@@ -381,6 +413,8 @@ export default function OnboardingWizard() {
       ? dict.results.cta
       : state.step === 13
       ? dict.loading.generating
+      : state.step === 11
+      ? dict.privacy.continue
       : dict.buttons.next;
   const primaryDisabled = state.step === 13 ? true : state.step < MAX_STEP ? nextDisabled : false;
   const desiredConfirmTitle = dict.desiredConfirm.title(state.desiredWeightKg);
@@ -391,38 +425,100 @@ export default function OnboardingWizard() {
       ? dict.desiredConfirm.lose(desiredDiffAbs)
       : dict.desiredConfirm.maintain;
 
+  const localeLabel = state.locale === "uk" ? "UA / EN" : "EN / UA";
+  const nextProps = state.step === 13
+    ? {}
+    : { onNext: handleContinue, nextLabel: primaryCtaLabel, nextDisabled: primaryDisabled };
+  const shellSharedProps = {
+    back: canGoBack ? handleBack : undefined,
+    progress: stepProgress,
+    localeLabel,
+    onToggleLocale: handleLocaleToggle,
+    toolsHref: "/tools",
+    toolsLabel: dict.common.tools,
+  };
+
+  const handleUnitsChange = useCallback(
+    (units: "metric" | "imperial") => {
+      if (units === state.units) return;
+
+      if (units === "imperial") {
+        const clampedWeightLb = Math.max(
+          weightImperialRange.min,
+          Math.min(weightImperialRange.max, kgToLb(state.weightKg))
+        );
+        const clampedDesiredLb = Math.max(
+          weightImperialRange.min,
+          Math.min(weightImperialRange.max, kgToLb(state.desiredWeightKg))
+        );
+        dispatch({
+          type: "setWeightKg",
+          weightKg: Math.round(lbToKg(clampedWeightLb) * 10) / 10,
+        });
+        dispatch({
+          type: "setDesiredWeightKg",
+          desiredWeightKg: Math.round(lbToKg(clampedDesiredLb) * 10) / 10,
+        });
+      } else {
+        dispatch({
+          type: "setWeightKg",
+          weightKg: Math.max(weightMetricRange.min, Math.min(weightMetricRange.max, state.weightKg)),
+        });
+        dispatch({
+          type: "setDesiredWeightKg",
+          desiredWeightKg: Math.max(
+            weightMetricRange.min,
+            Math.min(weightMetricRange.max, state.desiredWeightKg)
+          ),
+        });
+      }
+
+      dispatch({ type: "setUnits", units });
+      tapLight();
+    },
+    [dispatch, state.desiredWeightKg, state.units, state.weightKg, tapLight]
+  );
+
+  const handleSpeedChange = useCallback(
+    (value: number) => {
+      const prevZone = computeSpeedLabel(state.speedKgWeek);
+      const nextZone = computeSpeedLabel(value);
+      tapLight();
+      if (prevZone !== nextZone) {
+        tapMedium();
+      }
+      const clamped = Math.max(speedRange.min, Math.min(speedRange.max, value));
+      dispatch({ type: "setSpeedKgWeek", speedKgWeek: Number(clamped.toFixed(1)) });
+    },
+    [dispatch, state.speedKgWeek, tapLight, tapMedium]
+  );
+
   return (
-    <div className="relative flex min-h-screen flex-col bg-[hsl(var(--surface))] text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_60%)]" />
-      <main className="relative flex-1 px-6 pb-36 pt-12">
-        <div className="mx-auto flex h-full max-w-lg flex-col">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={state.step}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="flex h-full flex-col rounded-3xl bg-[hsl(var(--panel-70))] p-6 shadow-2xl backdrop-blur"
+    <div className="min-h-dvh bg-[#05090d] text-white">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={state.step}
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -16 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="flex justify-center"
+        >
+          {state.step === 1 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.gender.title}
+              subtitle={dict.gender.subtitle}
             >
-              {state.step === 1 && (
-                <StepShell
-                  title={dict.gender.title}
-                  subtitle={dict.gender.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="grid gap-3">
+              <div className="grid gap-3">
                     <CardOption
                       title={dict.gender.male}
                       description={dict.gender.maleHint}
                       active={state.gender === "male"}
                       onClick={() => {
                         dispatch({ type: "setGender", gender: "male" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -431,7 +527,7 @@ export default function OnboardingWizard() {
                       active={state.gender === "female"}
                       onClick={() => {
                         dispatch({ type: "setGender", gender: "female" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -440,23 +536,20 @@ export default function OnboardingWizard() {
                       active={state.gender === "other"}
                       onClick={() => {
                         dispatch({ type: "setGender", gender: "other" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 2 && (
-                <StepShell
-                  title={dict.birth.title}
-                  subtitle={dict.birth.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
+          {state.step === 2 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.birth.title}
+              subtitle={dict.birth.subtitle}
+            >
                   <div className="grid grid-cols-3 gap-3">
                     <WheelPicker
                       values={monthOptions.map((item) => item.label)}
@@ -465,6 +558,7 @@ export default function OnboardingWizard() {
                         const option = monthOptions.find((item) => item.label === label);
                         if (!option) return;
                         dispatch({ type: "setBirth", birth: { ...state.birth, month: option.value } });
+                        tapLight();
                       }}
                       ariaLabel={dict.birth.month}
                       visibleCount={7}
@@ -472,52 +566,63 @@ export default function OnboardingWizard() {
                     <WheelPicker
                       values={range(1, 31)}
                       value={state.birth.day}
-                      onChange={(val) => dispatch({ type: "setBirth", birth: { ...state.birth, day: Number(val) } })}
+                      onChange={(val) => {
+                        dispatch({ type: "setBirth", birth: { ...state.birth, day: Number(val) } });
+                        tapLight();
+                      }}
                       ariaLabel={dict.birth.day}
                       visibleCount={7}
                     />
                     <WheelPicker
                       values={range(1950, 2010)}
                       value={state.birth.year}
-                      onChange={(val) => dispatch({ type: "setBirth", birth: { ...state.birth, year: Number(val) } })}
+                      onChange={(val) => {
+                        dispatch({ type: "setBirth", birth: { ...state.birth, year: Number(val) } });
+                        tapLight();
+                      }}
                       ariaLabel={dict.birth.year}
                       visibleCount={7}
                     />
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 3 && (
-                <StepShell
-                  title={dict.measurements.title}
-                  subtitle={dict.measurements.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <SegmentedTabs
-                    items={[
-                      { label: dict.measurements.metric, value: "metric" },
-                      { label: dict.measurements.imperial, value: "imperial" },
-                    ]}
-                    value={state.units}
-                    onChange={(units) => {
-                      dispatch({ type: "setUnits", units });
-                      triggerHaptic("light");
-                    }}
-                  />
+          {state.step === 3 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.measurements.title}
+              subtitle={dict.measurements.subtitle}
+            >
+                  <div className="mx-auto mb-4 grid w-full max-w-sm grid-cols-2 rounded-full bg-neutral-800 p-1">
+                    <button
+                      type="button"
+                      className={`rounded-full py-2 text-center text-sm font-semibold transition ${state.units === "metric" ? "bg-white text-black" : "text-neutral-400"}`}
+                      onClick={() => handleUnitsChange("metric")}
+                    >
+                      {dict.measurements.metric}
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-full py-2 text-center text-sm font-semibold transition ${state.units === "imperial" ? "bg-white text-black" : "text-neutral-400"}`}
+                      onClick={() => handleUnitsChange("imperial")}
+                    >
+                      {dict.measurements.imperial}
+                    </button>
+              </div>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
                       <div className="mb-2 text-sm opacity-70">
                         {state.units === "metric" ? dict.measurements.heightMetric : dict.measurements.heightImperial}
-                      </div>
+                  </div>
                       {state.units === "metric" ? (
                         <WheelPicker
                           values={range(heightMetricRange.min, heightMetricRange.max)}
                           value={Math.round(state.heightCm)}
-                          onChange={(val) => dispatch({ type: "setHeightCm", heightCm: Number(val) })}
+                          onChange={(val) => {
+                            dispatch({ type: "setHeightCm", heightCm: Number(val) });
+                            tapLight();
+                          }}
                           ariaLabel={dict.measurements.heightMetric}
                           visibleCount={7}
                         />
@@ -530,19 +635,25 @@ export default function OnboardingWizard() {
                           minorLabel={inchesText}
                           ariaLabelMajor={feetText}
                           ariaLabelMinor={inchesText}
-                          onChange={(val) => dispatch({ type: "setHeightCm", heightCm: feetInchesToCm(val.major, val.minor) })}
+                          onChange={(val) => {
+                            dispatch({ type: "setHeightCm", heightCm: feetInchesToCm(val.major, val.minor) });
+                            tapLight();
+                          }}
                         />
-                      )}
-                    </div>
+                  )}
+                </div>
                     <div>
                       <div className="mb-2 text-sm opacity-70">
                         {state.units === "metric" ? dict.measurements.weightMetric : dict.measurements.weightImperial}
-                      </div>
+                  </div>
                       {state.units === "metric" ? (
                         <WheelPicker
                           values={range(weightMetricRange.min, weightMetricRange.max)}
                           value={Math.round(state.weightKg)}
-                          onChange={(val) => dispatch({ type: "setWeightKg", weightKg: Number(val) })}
+                          onChange={(val) => {
+                            dispatch({ type: "setWeightKg", weightKg: Number(val) });
+                            tapLight();
+                          }}
                           ariaLabel={dict.measurements.weightMetric}
                           visibleCount={7}
                         />
@@ -550,28 +661,26 @@ export default function OnboardingWizard() {
                         <WheelPicker
                           values={range(weightImperialRange.min, weightImperialRange.max)}
                           value={weightImperial}
-                          onChange={(val) =>
-                            dispatch({ type: "setWeightKg", weightKg: Math.round(lbToKg(Number(val)) * 10) / 10 })
-                          }
+                          onChange={(val) => {
+                            dispatch({ type: "setWeightKg", weightKg: Math.round(lbToKg(Number(val)) * 10) / 10 });
+                            tapLight();
+                          }}
                           ariaLabel={dict.measurements.weightImperial}
                           visibleCount={7}
                         />
-                      )}
-                    </div>
-                  </div>
-                </StepShell>
-              )}
+                  )}
+                </div>
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 4 && (
-                <StepShell
-                  title={dict.goal.title}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="grid gap-3">
+          {state.step === 4 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.goal.title}
+            >
+              <div className="grid gap-3">
                     <CardOption
                       title={dict.goal.lose}
                       description={dict.goal.loseHint}
@@ -579,7 +688,7 @@ export default function OnboardingWizard() {
                       active={state.goal === "lose"}
                       onClick={() => {
                         dispatch({ type: "setGoal", goal: "lose" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -589,7 +698,7 @@ export default function OnboardingWizard() {
                       active={state.goal === "maintain"}
                       onClick={() => {
                         dispatch({ type: "setGoal", goal: "maintain" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -599,31 +708,31 @@ export default function OnboardingWizard() {
                       active={state.goal === "gain"}
                       onClick={() => {
                         dispatch({ type: "setGoal", goal: "gain" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 5 && (
-                <StepShell
-                  title={dict.desired.title}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="text-center text-5xl font-black text-white">
+          {state.step === 5 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.desired.title}
+            >
+                  <div className="text-center font-black text-white text-[clamp(2.5rem,8vw,3.5rem)]">
                     {desiredDisplayLabel}
-                    <span className="ml-2 text-lg opacity-70">{state.units === "metric" ? "кг" : "lb"}</span>
-                  </div>
+                    <span className="ml-2 align-middle text-base font-semibold uppercase tracking-wide opacity-70">
+                      {state.units === "metric" ? "кг" : "lb"}
+                    </span>
+              </div>
                   <RulerSlider
                     value={state.units === "metric" ? state.desiredWeightKg : desiredDisplayValue}
                     onChange={(val) => {
                       const nextKg = state.units === "metric" ? val : lbToKg(val);
                       dispatch({ type: "setDesiredWeightKg", desiredWeightKg: Math.round(nextKg * 10) / 10 });
+                      tapLight();
                     }}
                     min={desiredRange.min}
                     max={desiredRange.max}
@@ -636,19 +745,16 @@ export default function OnboardingWizard() {
                       : desiredAction === "lose"
                       ? dict.desired.hintLose(desiredDiffAbs)
                       : dict.desired.hintGain(desiredDiffAbs)}
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 6 && (
-                <StepShell
-                  title={dict.desiredConfirm.heading}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
+          {state.step === 6 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.desiredConfirm.heading}
+            >
                   <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
                     <IconBadge className="bg-accent-500/20 text-accent-200">
                       <Target size={20} />
@@ -656,81 +762,74 @@ export default function OnboardingWizard() {
                     <div className="space-y-3">
                       <div className="text-4xl font-black text-white">{desiredConfirmTitle}</div>
                       <p className="text-sm text-neutral-400">{desiredConfirmBody}</p>
-                    </div>
-                  </div>
-                </StepShell>
-              )}
+                </div>
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 7 && (
-                <StepShell
-                  title={dict.speed.title}
-                  subtitle={dict.speed.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="grid h-40 w-40 place-items-center overflow-hidden rounded-full bg-[hsl(var(--panel-70))]">
-                      {speedLottieData ? (
-                        <Lottie key={speedKey} animationData={speedLottieData || undefined} loop />
-                      ) : (
-                        <div className="h-24 w-24 rounded-full bg-neutral-700" />
-                      )}
-                    </div>
-                    <span
-                      className={`rounded-full px-4 py-1 text-xs font-semibold uppercase tracking-wide ${
-                        speedKey === "slow"
-                          ? "bg-sky-500/20 text-sky-200"
-                          : speedKey === "recommended"
-                          ? "bg-accent-500/20 text-accent-500"
-                          : "bg-amber-500/20 text-amber-200"
-                      }`}
-                    >
-                      {speedLabel}
-                    </span>
-                    <div className="text-5xl font-black">{state.speedKgWeek.toFixed(1)} kg</div>
-                    <input
-                      type="range"
-                      min={speedRange.min}
-                      max={speedRange.max}
-                      step={speedRange.step}
-                      value={state.speedKgWeek}
-                      onChange={(event) => {
-                        dispatch({ type: "setSpeedKgWeek", speedKgWeek: Number(event.target.value) });
-                        triggerHaptic("light");
-                      }}
-                      aria-label={dict.speed.title}
-                      className="w-full accent-accent-500 bg-white/10"
-                    />
-                    {speedWarning && (
-                      <div className="rounded-2xl border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-                        {speedWarning}
-                      </div>
-                    )}
-                  </div>
-                </StepShell>
-              )}
+          {state.step === 7 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.speed.title}
+              subtitle={speedSubtitle}
+            >
+              <div className="space-y-6 pt-1">
+                <SpeedExact
+                  value={speedDisplayValue}
+                  onChange={(nextValue) => {
+                    const nextKg = state.units === "metric" ? nextValue : lbToKg(nextValue);
+                    handleSpeedChange(nextKg);
+                  }}
+                  unit={state.units === "metric" ? "kg" : "lbs"}
+                  range={speedDisplayRange}
+                  zones={speedDisplayZones}
+                  labels={{
+                    slow: dict.speed.slow,
+                    recommended: dict.speed.recommended,
+                    aggressive: dict.speed.aggressive,
+                  }}
+                  unitLabel={speedUnitLabel}
+                  recommendedLabel={dict.speed.recommendedChip}
+                  tickLabels={speedTickLabels}
+                />
 
-              {state.step === 8 && (
-                <StepShell
-                  title={dict.activity.title}
-                  subtitle={dict.activity.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
+                <div
+                  className={`rounded-2xl px-4 py-3 text-center text-sm font-semibold ${
+                    speedKey === "slow"
+                      ? "bg-sky-500/10 text-sky-200"
+                      : speedKey === "recommended"
+                      ? "bg-lime-500/10 text-lime-200"
+                      : "bg-amber-500/10 text-amber-200"
+                  }`}
                 >
-                  <div className="grid gap-3">
+                  {speedLabel}
+                </div>
+
+                {speedWarning && (
+                  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                    {speedWarning}
+                  </div>
+                )}
+              </div>
+            </StepShell>
+          )}
+
+          {state.step === 8 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.activity.title}
+              subtitle={dict.activity.subtitle}
+            >
+              <div className="grid gap-3">
                     <CardOption
                       title={dict.activity.low}
                       description={dict.activity.lowHint}
                       active={state.activity === "0-2"}
                       onClick={() => {
                         dispatch({ type: "setActivity", activity: "0-2" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -739,7 +838,7 @@ export default function OnboardingWizard() {
                       active={state.activity === "3-5"}
                       onClick={() => {
                         dispatch({ type: "setActivity", activity: "3-5" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
                     <CardOption
@@ -748,23 +847,20 @@ export default function OnboardingWizard() {
                       active={state.activity === "6+"}
                       onClick={() => {
                         dispatch({ type: "setActivity", activity: "6+" });
-                        triggerHaptic("light");
+                        tapLight();
                       }}
                     />
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 9 && (
-                <StepShell
-                  title={dict.diet.title}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="grid gap-3">
+          {state.step === 9 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.diet.title}
+            >
+              <div className="grid gap-3">
                     {(
                       [
                         { key: "classic", title: dict.diet.classic, hint: dict.diet.classicHint },
@@ -780,25 +876,22 @@ export default function OnboardingWizard() {
                         active={state.diet === item.key}
                         onClick={() => {
                           dispatch({ type: "setDiet", diet: item.key });
-                          triggerHaptic("light");
+                          tapLight();
                         }}
                       />
                     ))}
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 10 && (
-                <StepShell
-                  title={dict.barriers.title}
-                  subtitle={dict.barriers.subtitle}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="grid gap-3">
+          {state.step === 10 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.barriers.title}
+              subtitle={dict.barriers.subtitle}
+            >
+              <div className="grid gap-3">
                     {(
                       [
                         { key: "consistency", title: dict.barriers.consistency },
@@ -813,48 +906,32 @@ export default function OnboardingWizard() {
                         checked={state.barriers.includes(item.key)}
                         onClick={() => {
                           dispatch({ type: "toggleBarrier", barrier: item.key });
-                          triggerHaptic("light");
+                          tapLight();
                         }}
                       />
                     ))}
-                  </div>
-                </StepShell>
-              )}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 11 && (
-                <StepShell
-                  title={dict.privacy.title}
-                  subtitle={dict.privacy.body}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
-                  <div className="flex h-full items-center justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic("light");
-                        next();
-                      }}
-                      className="rounded-full bg-accent-500 px-8 py-3 text-sm font-semibold text-neutral-900 shadow-lg"
-                    >
-                      {dict.privacy.continue}
-                    </button>
-                  </div>
-                </StepShell>
-              )}
+          {state.step === 11 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.privacy.title}
+            >
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-neutral-300">
+                {dict.privacy.body}
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 12 && (
-                <StepShell
-                  title={dict.options.title}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
-                >
+          {state.step === 12 && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.options.title}
+            >
                   <div className="space-y-4">
                     <div>
                       <div className="mb-2 text-sm opacity-80">{dict.options.rolloverQuestion}</div>
@@ -862,241 +939,147 @@ export default function OnboardingWizard() {
                         <ToggleCard
                           title={dict.options.yes}
                           active={state.allowRollover}
-                          onClick={() => dispatch({ type: "setAllowRollover", value: true })}
+                          onClick={() => {
+                            tapLight();
+                            dispatch({ type: "setAllowRollover", value: true });
+                          }}
                         />
                         <ToggleCard
                           title={dict.options.no}
                           active={!state.allowRollover}
-                          onClick={() => dispatch({ type: "setAllowRollover", value: false })}
+                          onClick={() => {
+                            tapLight();
+                            dispatch({ type: "setAllowRollover", value: false });
+                          }}
                         />
-                      </div>
-                    </div>
+                  </div>
+                </div>
                     <div>
                       <div className="mb-2 text-sm opacity-80">{dict.options.addBackQuestion}</div>
                       <div className="grid grid-cols-2 gap-2">
                         <ToggleCard
                           title={dict.options.yes}
                           active={state.addBurnedBack}
-                          onClick={() => dispatch({ type: "setAddBurnedBack", value: true })}
+                          onClick={() => {
+                            tapLight();
+                            dispatch({ type: "setAddBurnedBack", value: true });
+                          }}
                         />
                         <ToggleCard
                           title={dict.options.no}
                           active={!state.addBurnedBack}
-                          onClick={() => dispatch({ type: "setAddBurnedBack", value: false })}
+                          onClick={() => {
+                            tapLight();
+                            dispatch({ type: "setAddBurnedBack", value: false });
+                          }}
                         />
-                      </div>
-                    </div>
                   </div>
-                </StepShell>
-              )}
+                </div>
+              </div>
+            </StepShell>
+          )}
 
-              {state.step === 13 && (
-                <StepShell
-                  title={dict.loading.title}
-                  subtitle={dict.loading.caption}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={false}
-              progress={stepProgress}
+          {state.step === 13 && (
+            <StepShell
+              {...shellSharedProps}
+              title={dict.loading.title}
+              subtitle={dict.loading.caption}
             >
-                  <div className="flex h-full flex-col items-center justify-center gap-4">
-                    <div className="text-7xl font-black md:text-8xl">{loadingPercent}%</div>
-                    <div className="h-2 w-full rounded-full bg-white/10">
-                      <motion.div
-                        className="h-full rounded-full bg-accent-500"
-                        initial={{ width: "0%" }}
-                        animate={{ width: `${loadingPercent}%` }}
-                        transition={{ duration: 0.2 }}
-                      />
-                    </div>
-                    <div className="mt-4 w-full space-y-3">
-                      {loadingStages.map((stage) => {
-                        const reached = loadingPercent >= stage.threshold;
-                        return (
-                          <div key={stage.key} className="flex items-center gap-3 text-left">
-                            <motion.span
-                              initial={{ scale: 0.85, rotate: -90 }}
-                              animate={reached ? { scale: 1, rotate: 0 } : { scale: 0.85, rotate: -90 }}
-                              transition={{ duration: 0.18 }}
-                              className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm ${
-                                reached
-                                  ? "border-accent-500 bg-accent-500 text-neutral-900"
-                                  : "border-white/20 text-white/70"
-                              }`}
-                            >
-                              {reached ? <Check size={18} /> : <span className="h-2.5 w-2.5 rounded-full bg-white/40" />}
-                            </motion.span>
-                            <span className="text-sm text-neutral-300">{stage.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </StepShell>
-              )}
+              <LoadingStage onDone={handleLoadingDone} />
+            </StepShell>
+          )}
 
-              {state.step === 14 && plan && (
-                <StepShell
-                  title={dict.results.heading}
-                  topRight={localeSwitch}
-                  backLabel={backLabel}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  progress={stepProgress}
+          {state.step === 14 && plan && (
+            <StepShell
+              {...shellSharedProps}
+              {...nextProps}
+              title={dict.results.heading}
+            >
+              <div className="space-y-6 -mt-2">
+                <div className="flex items-start gap-3 rounded-2xl border border-lime-400/40 bg-lime-400/15 px-4 py-3 text-sm text-lime-100">
+                  <CalendarCheck className="mt-0.5 h-5 w-5" />
+                  <span>{summaryLine}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {macroStats.map((macro) => (
+                    <RingCard
+                      key={macro.key}
+                      title={macro.label}
+                      unit={macro.unit}
+                      value={macro.value}
+                      percent={macro.percent}
+                      accentClass={ringAccentClass[macro.key as MacroKey]}
+                      icon={
+                        macro.key === "calories" ? (
+                          <Flame className="h-4 w-4 text-white/70" />
+                        ) : macro.key === "carbs_g" ? (
+                          <Wheat className="h-4 w-4 text-white/70" />
+                        ) : macro.key === "protein_g" ? (
+                          <Drumstick className="h-4 w-4 text-white/70" />
+                        ) : (
+                          <Droplets className="h-4 w-4 text-white/70" />
+                        )
+                      }
+                      onEdit={() => setEditingMacro(macro.key)}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    tapLight();
+                    setShowReview(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-transparent py-3 text-sm font-semibold text-white/80"
                 >
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3 rounded-3xl border border-accent-500/40 bg-accent-500/20 px-4 py-3 text-sm text-accent-500">
-                      <CalendarCheck size={18} />
-                      <span>{summaryLine}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowReview(true)}
-                      className="flex items-center gap-2 text-sm font-semibold text-accent-500 underline decoration-dotted underline-offset-4"
+                  <Pencil className="h-4 w-4" />
+                  {dict.results.editInputs}
+                </button>
+
+                <section className="rounded-2xl bg-white/5 p-4">
+                  <h3 className="mb-3 text-lg font-semibold">How to reach your goals</h3>
+                  <ul className="space-y-3 text-sm text-white/80">
+                    <li className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                      <ShieldCheck className="h-4 w-4 text-lime-200" />
+                      Use health scores to improve your routine
+                    </li>
+                    <li className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                      <Sparkles className="h-4 w-4 text-amber-200" />
+                      Track your food daily
+                    </li>
+                    <li className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                      <Flame className="h-4 w-4 text-orange-300" />
+                      Follow your daily calorie recommendation
+                    </li>
+                    <li className="flex items-center gap-3 rounded-xl bg-white/5 p-3">
+                      <Wheat className="h-4 w-4 text-sky-200" />
+                      Balance your carbs, proteins, and fat
+                    </li>
+                  </ul>
+                </section>
+
+                <section className="space-y-2 text-sm text-white/60">
+                  <h3 className="text-white/80">Sources</h3>
+                  {resourceLinks.map((source) => (
+                    <a
+                      key={source.href}
+                      href={source.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-lime-200 underline decoration-dotted"
                     >
-                      <Pencil size={16} /> {dict.results.editInputs}
-                    </button>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {macroStats.map((macro) => {
-                        const isEditing = editingMacro === macro.key;
-                        const pickerValues =
-                          macro.key === "calories" ? range(1200, 3900, 25) : range(10, 350, 5);
-                        const wheelValue =
-                          macro.key === "calories"
-                            ? Math.round(macro.value / 25) * 25
-                            : Math.round(macro.value / 5) * 5;
-                        const percentLabel = Math.round(macro.percent * 100);
-                        const sweep = Math.max(0, Math.min(1, macro.percent)) * 360;
-                        return (
-                          <div key={macro.key} className="relative overflow-hidden rounded-3xl bg-[hsl(var(--panel-70))] p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <IconBadge className={macro.badgeClassName}>{macro.icon}</IconBadge>
-                              <button
-                                type="button"
-                                onClick={() => setEditingMacro(macro.key)}
-                                className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/20"
-                              >
-                                <Pencil size={14} />
-                                {dict.results.edit}
-                              </button>
-                            </div>
-                            <div className="mt-4 flex flex-col items-center gap-3">
-                              <div className="relative flex h-32 w-32 items-center justify-center">
-                                <div
-                                  className="absolute inset-0 rounded-full opacity-80"
-                                  style={{
-                                    backgroundImage: `conic-gradient(${macro.tint} ${sweep}deg, rgba(255,255,255,0.06) 0deg)`,
-                                  }}
-                                  aria-hidden
-                                />
-                                <div className="relative flex h-28 w-28 flex-col items-center justify-center rounded-full bg-black/50 text-white shadow-inner">
-                                  <span className="text-3xl font-bold">{macro.displayValue}</span>
-                                  <span className="text-xs uppercase tracking-wide opacity-70">{macro.unit}</span>
-                                </div>
-                              </div>
-                              <div className="text-sm font-semibold text-white">{macro.label}</div>
-                              <div className="text-xs uppercase tracking-wide text-neutral-400">
-                                {percentLabel}% {dict.results.cards.ofCalories}
-                              </div>
-                            </div>
-                            {isEditing && (
-                              <div className="mt-4 space-y-3">
-                                <WheelPicker
-                                  values={pickerValues}
-                                  value={wheelValue}
-                                  onChange={(val) => {
-                                    const numeric = Number(val);
-                                    dispatch({ type: "setMacrosOverride", payload: { [macro.key]: numeric } });
-                                    setPlan((prev) =>
-                                      prev
-                                        ? macro.key === "calories"
-                                          ? { ...prev, targetCalories: numeric }
-                                          : { ...prev, [macro.key]: numeric }
-                                        : prev
-                                    );
-                                    triggerHaptic("light");
-                                  }}
-                                  ariaLabel={macro.label}
-                                  visibleCount={7}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingMacro(null)}
-                                  className="text-xs text-neutral-400 underline"
-                                >
-                                  {dict.common.done}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="rounded-3xl bg-[hsl(var(--panel-70))] p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm opacity-70">{dict.results.healthScore}</span>
-                        <span className="text-lg font-semibold">{healthScore}/10</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-white/10">
-                        <motion.div
-                          className="h-full rounded-full bg-accent-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(healthScore / 10) * 100}%` }}
-                          transition={{ duration: 0.4 }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="mb-2 text-lg font-semibold">{dict.results.checklistTitle}</h3>
-                      <ul className="space-y-2 text-sm opacity-80">
-                        <li>• Track meals daily to stay aware of intake.</li>
-                        <li>• Prioritise sleep & hydration for recovery.</li>
-                        <li>• Align workouts with energy availability.</li>
-                        <li>• Review progress every two weeks and adjust.</li>
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h3 className="mb-2 text-sm font-semibold opacity-80">{dict.results.sourcesTitle}</h3>
-                      <ul className="space-y-2 text-sm">
-                        {[
-                          {
-                            label: "Basal metabolic rate — Healthline",
-                            href: "https://www.healthline.com/health/what-is-basal-metabolic-rate",
-                          },
-                          {
-                            label: "Calorie counting — Harvard",
-                            href: "https://www.health.harvard.edu/staying-healthy/calorie-counting-made-easy",
-                          },
-                          { label: "ISSN — PubMed 28630601", href: "https://pubmed.ncbi.nlm.nih.gov/28630601/" },
-                          { label: "NIH Guidelines (NHLBI)", href: "https://www.nhlbi.nih.gov/files/docs/guidelines/ob_gdlns.pdf" },
-                        ].map((source) => (
-                          <li key={source.href}>
-                            <a
-                              className="inline-flex items-center gap-1 text-accent-500 underline decoration-dotted underline-offset-4"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              href={source.href}
-                            >
-                              {source.label}
-                              <ExternalLink size={14} />
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </StepShell>
-              )}
+                      {source.label}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ))}
+                </section>
+              </div>
+            </StepShell>
+          )}
             </motion.div>
           </AnimatePresence>
-        </div>
-        <StickyCTA className="mt-6" label={primaryCtaLabel} disabled={primaryDisabled} onClick={handleContinue} />
-      </main>
 
       <AnimatePresence>
         {showReview && (
@@ -1114,7 +1097,14 @@ export default function OnboardingWizard() {
             >
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Review inputs</h3>
-                <button type="button" onClick={() => setShowReview(false)} className="text-sm text-neutral-400 underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    tapLight();
+                    setShowReview(false);
+                  }}
+                  className="text-sm text-neutral-400 underline"
+                >
                   Close
                 </button>
               </div>
@@ -1136,6 +1126,7 @@ export default function OnboardingWizard() {
                     <button
                       type="button"
                       onClick={() => {
+                        tapLight();
                         go(item.step);
                         setShowReview(false);
                       }}
@@ -1164,6 +1155,25 @@ export default function OnboardingWizard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EditMacroSheet
+        open={Boolean(editingMacro && activeMacroStat)}
+        title={sheetTitle}
+        unit={sheetUnit}
+        values={sheetValues}
+        value={sheetValue}
+        onApply={(val) => {
+          if (editingMacro) {
+            applyMacroOverride(editingMacro, val);
+          }
+        }}
+        onRevert={() => {
+          if (editingMacro) {
+            revertMacroOverride(editingMacro);
+          }
+        }}
+        onClose={() => setEditingMacro(null)}
+      />
     </div>
   );
 }
@@ -1230,12 +1240,4 @@ function computeSpeedLabel(speed: number): SpeedKey {
   if (speed <= speedThresholds.slow) return "slow";
   if (speed < speedThresholds.aggressive) return "recommended";
   return "aggressive";
-}
-
-function triggerHaptic(type: "light" | "medium" | "heavy") {
-  try {
-    window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.(type);
-  } catch {
-    // no-op
-  }
 }

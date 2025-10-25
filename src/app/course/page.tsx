@@ -2,6 +2,7 @@
  "use client";
 import BottomBar from "@/components/BottomBar";
 import Script from "next/script";
+import Image from "next/image";
 import { getProgress, toggleDayDone } from "@/lib/storage";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
@@ -22,6 +23,13 @@ declare global {
 
 type Level = "beginner" | "intermediate" | "advanced";
 type Track = "gym" | "home";
+
+// ---- Progress helpers (hoisted to avoid TDZ in hooks) ----
+type ProgressResp = { done: number[] };
+const getProgressSafe =
+  getProgress as unknown as () => Promise<ProgressResp> | ProgressResp;
+const toggleDayDoneSafe =
+  toggleDayDone as unknown as (day: number) => Promise<ProgressResp> | ProgressResp;
 
 // --- Hydration-safe hook ---
 function useHydrated(){
@@ -83,23 +91,23 @@ export default function Lessons(){
 
   // ---- SOUND & HAPTICS ----
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const ensureAudio = () => {
+  const ensureAudio = useCallback(() => {
     if (typeof window === "undefined") return null;
     if (!audioCtxRef.current) {
       const Ctor: typeof AudioContext | undefined = window.AudioContext ?? window.webkitAudioContext;
       if (Ctor) audioCtxRef.current = new Ctor();
     }
     return audioCtxRef.current;
-  };
-  const haptic = (type: "light"|"medium"|"heavy"|"success"|"warning"|"error" = "light") => {
+  }, []);
+  const haptic = useCallback((type: "light"|"medium"|"heavy"|"success"|"warning"|"error" = "light") => {
     try {
       const api = window?.Telegram?.WebApp?.HapticFeedback;
       if (!api) return;
       if (type==="success"||type==="warning"||type==="error") api.notificationOccurred?.(type);
       else api.impactOccurred?.(type);
     } catch {}
-  };
-  const playGong = () => {
+  }, []);
+  const playGong = useCallback(() => {
     const ctx = ensureAudio(); if (!ctx) return;
     const now = ctx.currentTime;
     const gain = ctx.createGain();
@@ -116,7 +124,7 @@ export default function Lessons(){
     o1.stop(now + 1.25); o2.stop(now + 1.25);
     // extra haptic
     haptic("success");
-  };
+  }, [ensureAudio, haptic]);
 
   // Preload external bell sound (public/sounds/gong.wav)
   const bellBufRef = useRef<AudioBuffer | null>(null);
@@ -127,26 +135,26 @@ export default function Lessons(){
       const arr = await res.arrayBuffer();
       bellBufRef.current = await ctx.decodeAudioData(arr);
     } catch {}
-  }, []);
+  }, [ensureAudio]);
   useEffect(() => { void loadBell(); }, [loadBell]);
-  const playBell = () => {
+  const playBell = useCallback(() => {
     const ctx = ensureAudio(); if (!ctx || !bellBufRef.current) return;
     const src = ctx.createBufferSource();
     src.buffer = bellBufRef.current;
     src.connect(ctx.destination);
     src.start();
     haptic("success");
-  };
+  }, [ensureAudio, haptic]);
 
   // --- Helpers for date-keyed logs (YYYY-MM-DD) ---
   const pad = (n:number) => String(n).padStart(2, "0");
-  const dateKeyLocal = (d = new Date()) => {
+  const dateKeyLocal = useCallback((d = new Date()) => {
     // local date (no timezone shift), e.g. 2025-10-19
     const y = d.getFullYear();
     const m = pad(d.getMonth()+1);
     const day = pad(d.getDate());
     return `${y}-${m}-${day}`;
-  };
+  }, []);
   // ---- GLOBAL TIMER PERSISTENCE ----
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -170,7 +178,7 @@ export default function Lessons(){
     if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [variantSheetIdx]);
   const [logDate, setLogDate] = useState<string>(dateKeyLocal());
-  const loadLogFor = (dateStr: string, index: number) => {
+  const loadLogFor = useCallback((dateStr: string, index: number) => {
     if (typeof window === "undefined") return;
     const newKey = `log_${dateStr}_${active}_${index}`;
     const oldKey = `log_${active}_${index}`;
@@ -185,7 +193,7 @@ export default function Lessons(){
     } else {
       setLogRows([{ kg:"", reps:"" }]);
     }
-  };
+  }, [active]);
 
   const guessNextIntensity = useCallback((day:number): "light"|"heavy" => {
     if (typeof window === "undefined") return "light";
@@ -244,7 +252,7 @@ useEffect(()=>{
       });
     }, 1000);
     return ()=> { if (timerRef.current) clearInterval(timerRef.current); };
-  },[running, remaining]);
+  }, [playBell, playGong, remaining, running]);
 
   const startPreset = (min:number)=>{
     const secs = min*60;
@@ -300,17 +308,13 @@ useEffect(()=>{
   const minutes = Math.floor(remaining/60).toString();
   const seconds = (remaining%60).toString().padStart(2,"0");
 
-  type ProgressResp = { done: number[] };
-  const getProgressSafe = getProgress as unknown as () => Promise<ProgressResp> | ProgressResp;
-  const toggleDayDoneSafe = toggleDayDone as unknown as (day:number) => Promise<ProgressResp> | ProgressResp;
-
   // ---- COURSE STATE ----
   // Structured Programs (3 levels × 2 tracks)
   type Exercise = { title:string; sets?:string };
   type DayPlan = { title:string; exercises: Exercise[] };
   type Program = { level: Level; track: Track; goal: string; days: [DayPlan, DayPlan, DayPlan] };
 
-  const programs: Program[] = [
+  const programs = useMemo<Program[]>(() => [
     {
       level: "beginner", track: "gym",
       goal: "Навчитися техніці, зміцнити все тіло, відчути м’язи.",
@@ -480,11 +484,11 @@ useEffect(()=>{
         ]},
       ]
     },
-  ];
+  ], []);
 
   const program = useMemo(
     () => programs.find(p => p.level===level && p.track===track)!,
-    [level, track]
+    [level, track, programs]
   );
 
   // Persist selected program meta and days to localStorage for calendar use
@@ -523,15 +527,10 @@ useEffect(()=>{
         localStorage.setItem("program_sets", JSON.stringify(setsMap));
       } catch {}
     } catch {}
-  }, [program.level, program.track, program.days, intensity]);
+  }, [program, intensity]);
   const totalDays = 21;
   const percent = useMemo(()=> Math.min(100, Math.round((done.length/totalDays)*100)), [done.length]);
   const currentDay = program.days[Math.max(0, Math.min(2, active-1))];
-  const isCompleted = done.includes(active);
-
-  const goPrev = () => setActive(prev => Math.max(1, prev-1));
-  const goNext = () => setActive(prev => Math.min(3, prev+1));
-
 
   // ---- VIDEO MODAL ----
   const [videoOpen, setVideoOpen] = useState(false);
@@ -563,7 +562,7 @@ useEffect(()=>{
     const dKey = dateStr || logDate || dateKeyLocal(); // keep provided date or existing modal date
     setLogDate(dKey);
     loadLogFor(dKey, index);
-  }, [logDate]);
+  }, [dateKeyLocal, loadLogFor, logDate]);
   // Consume intent from calendar (open log modal for specific date/day)
   useEffect(()=>{
     if (typeof window === "undefined") return;
@@ -599,11 +598,10 @@ useEffect(()=>{
     setLogOpen(null);
   };
 
-  useEffect(()=>{
+  useEffect(() => {
     if (!logOpen) return;
     loadLogFor(logDate, logOpen.index);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logDate, logOpen?.index]);
+  }, [loadLogFor, logDate, logOpen]);
 
   const addRow = () => setLogRows(prev => [...prev, {kg:"", reps:""}]);
   const updateRow = (i:number, field:keyof LogRow, val:string) => {
@@ -768,10 +766,13 @@ useEffect(()=>{
               className="relative h-[280px] md:h-[300px] overflow-hidden"
             >
               {/* Фонове зображення банера тільки PNG */}
-              <img
+              <Image
                 src={bannerImg.endsWith(".png") ? bannerImg : bannerImg.replace(/\.(webp|jpg|jpeg)$/i, ".png")}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 768px"
+                priority
               />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70" />
               <div className="absolute inset-0 flex flex-col justify-between p-5 pt-6 pb-5 text-white">
@@ -1154,7 +1155,16 @@ function LogModal({
                   ref={(el) => { repsInputs.current[i] = el; }}
                   value={row.reps}
                   onChange={e=>updateRow(i,"reps",e.target.value)}
-                  onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); i===logRows.length-1 ? cloneLast() : focusNext(i); }}}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (i === logRows.length - 1) {
+                        cloneLast();
+                      } else {
+                        focusNext(i);
+                      }
+                    }
+                  }}
                   className="mt-1 w-full rounded-lg bg-neutral-800 border border-neutral-700 px-2 py-2"
                   inputMode="numeric"
                 />

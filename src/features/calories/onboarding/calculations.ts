@@ -60,10 +60,10 @@ export function calculatePlan(input: PlanInput): PlanResult {
   }
 
   const baseProtein = goal === "lose" ? macroBounds.protein.lose : goal === "gain" ? macroBounds.protein.gain : macroBounds.protein.maintain;
-  let protein_g = Math.round((overrides.protein_g ?? baseProtein * weightKg) * 10) / 10;
-  let fat_g = Math.round((overrides.fat_g ?? Math.max(macroBounds.fat.min, macroBounds.fat.base) * weightKg) * 10) / 10;
-  let carbs_g = overrides.carbs_g ?? Math.max(0, (targetCalories - protein_g * 4 - fat_g * 9) / 4);
-  carbs_g = Math.round(carbs_g * 10) / 10;
+  const protein_g = Math.round((overrides.protein_g ?? baseProtein * weightKg) * 10) / 10;
+  const fat_g = Math.round((overrides.fat_g ?? Math.max(macroBounds.fat.min, macroBounds.fat.base) * weightKg) * 10) / 10;
+  const carbsBase = overrides.carbs_g ?? Math.max(0, (targetCalories - protein_g * 4 - fat_g * 9) / 4);
+  const carbs_g = Math.round(carbsBase * 10) / 10;
 
   const weeksToGoal = diffKg === 0 ? 0 : Math.max(0, Math.ceil(Math.abs(diffKg) / clampedSpeed));
   const targetDate = new Date();

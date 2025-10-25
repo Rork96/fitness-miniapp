@@ -1,7 +1,38 @@
 "use client";
 
 import * as React from "react";
-import { hapticTick } from "./haptics";
+
+function hapticLight() {
+  try {
+    const haptics = (globalThis as {
+      Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred?: (type: string) => void } } };
+    })?.Telegram?.WebApp?.HapticFeedback;
+    haptics?.impactOccurred?.("light");
+  } catch {
+    // ignore
+  }
+  try {
+    navigator?.vibrate?.(5);
+  } catch {
+    // ignore
+  }
+}
+
+function hapticMedium() {
+  try {
+    const haptics = (globalThis as {
+      Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred?: (type: string) => void } } };
+    })?.Telegram?.WebApp?.HapticFeedback;
+    haptics?.impactOccurred?.("medium");
+  } catch {
+    // ignore
+  }
+  try {
+    navigator?.vibrate?.(8);
+  } catch {
+    // ignore
+  }
+}
 
 export type RulerSliderProps = {
   value: number;
@@ -113,7 +144,7 @@ export function RulerSlider({
       const snapped = snapValue(rawValue);
       if (lastValueRef.current === snapped) return snapped;
       lastValueRef.current = snapped;
-      if (shouldHaptic) hapticTick();
+      if (shouldHaptic) hapticLight();
       onChange(snapped);
       return snapped;
     },
@@ -147,7 +178,8 @@ export function RulerSlider({
     const snappedOffset = valueToOffset(snappedValue);
     positionRef.current = snappedOffset;
     setPosition(snappedOffset);
-    emitValue(snappedValue, true);
+    emitValue(snappedValue, false);
+    hapticMedium();
     onChangeEnd?.(snappedValue);
   }, [emitValue, offsetToValue, onChangeEnd, snapValue, valueToOffset]);
 

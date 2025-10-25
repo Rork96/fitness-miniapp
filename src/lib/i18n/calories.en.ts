@@ -2,6 +2,7 @@ export const caloriesEn = {
   common: {
     done: "Done",
     saved: "Saved",
+    tools: "Tools",
   },
   gender: {
     title: "Choose your gender",
@@ -55,6 +56,13 @@ export const caloriesEn = {
   speed: {
     title: "Weekly speed",
     subtitle: "Choose a tempo that fits your lifestyle.",
+    subtitleLose: "Weight loss speed per week",
+    subtitleGain: "Weight gain speed per week",
+    subtitleMaintain: "Weight maintenance pace per week",
+    perWeekLose: "Lose per week",
+    perWeekGain: "Gain per week",
+    perWeekMaintain: "Maintain pace",
+    recommendedChip: "Recommended",
     slow: "Slow and steady",
     recommended: "Recommended pace",
     aggressive: "Aggressive push",

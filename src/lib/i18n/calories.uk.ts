@@ -2,6 +2,7 @@ export const caloriesUk = {
   common: {
     done: "Готово",
     saved: "Збережено",
+    tools: "Інструменти",
   },
   gender: {
     title: "Оберіть стать",
@@ -55,11 +56,18 @@ export const caloriesUk = {
   speed: {
     title: "Швидкість на тиждень",
     subtitle: "Оберіть комфортний темп зміни ваги.",
+    subtitleLose: "Швидкість схуднення за тиждень",
+    subtitleGain: "Швидкість набору ваги за тиждень",
+    subtitleMaintain: "Темп підтримки ваги на тиждень",
+    perWeekLose: "Мінус за тиждень",
+    perWeekGain: "Плюс за тиждень",
+    perWeekMaintain: "Підтримка ваги",
+    recommendedChip: "Рекомендовано",
     slow: "Повільно і стабільно",
     recommended: "Рекомендовано",
     aggressive: "Агресивно та сміливо",
-    warningLose: "You may develop loose skin / higher rebound risk",
-    warningGain: "Monitor fat gain and recovery",
+    warningLose: "Можлива поява обвислої шкіри та більший ризик відкату",
+    warningGain: "Слідкуйте за набором жиру й відновленням",
   },
   activity: {
     title: "Активність на тиждень",

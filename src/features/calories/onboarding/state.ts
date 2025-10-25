@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer } from "react";
-import { activityFactors, MAX_STEP, STORAGE_KEY } from "./constants";
+import { activityFactors, MAX_STEP, STORAGE_KEY, UnitSystem } from "./constants";
 import { calculatePlan } from "./calculations";
 import type { PlanResult } from "./calculations";
 
-export type Units = "metric" | "imperial";
+export type Units = UnitSystem;
 export type Gender = "male" | "female" | "other";
 export type Goal = "lose" | "maintain" | "gain";
 export type Diet = "classic" | "pescatarian" | "vegetarian" | "vegan";
@@ -18,7 +18,7 @@ export type OnboardingState = {
   locale: Locale;
   gender: Gender | null;
   birth: BirthDate;
-  units: Units;
+  units: UnitSystem;
   heightCm: number;
   weightKg: number;
   goal: Goal | null;
@@ -40,7 +40,7 @@ export type OnboardingAction =
   | { type: "setLocale"; locale: Locale }
   | { type: "setGender"; gender: Gender }
   | { type: "setBirth"; birth: BirthDate }
-  | { type: "setUnits"; units: Units }
+  | { type: "setUnits"; units: UnitSystem }
   | { type: "setHeightCm"; heightCm: number }
   | { type: "setWeightKg"; weightKg: number }
   | { type: "setGoal"; goal: Goal }
@@ -141,7 +141,8 @@ export function useOnboardingMachine() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const timeoutId = window.setTimeout(() => persistToStorage(state), 250);
+    return () => window.clearTimeout(timeoutId);
   }, [state]);
 
   const next = useCallback(() => dispatch({ type: "next" }), []);
@@ -191,6 +192,16 @@ export function calcAge(birth: BirthDate): number {
     age -= 1;
   }
   return age;
+}
+
+
+function persistToStorage(state: OnboardingState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore persist errors
+  }
 }
 
 function clamp(value: number, min: number, max: number) {

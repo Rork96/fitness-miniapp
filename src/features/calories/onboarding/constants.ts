@@ -1,4 +1,5 @@
 export const STORAGE_KEY = "cal.onboarding.v1";
+export type UnitSystem = "metric" | "imperial";
 export const PROFILE_STORAGE_KEY = "cal.profile.v1";
 
 export const MAX_STEP = 14;
@@ -28,4 +29,9 @@ export const macroBounds = {
   surplus: { min: 200, max: 800 },
 };
 
-export const speedRange = { min: 0.1, max: 1.5, step: 0.1 };
+export const speedRangeMetric = { min: 0.1, max: 1.5, step: 0.1 };
+export const speedRangeImperial = { min: 0.2, max: 3.0, step: 0.1 };
+export const speedRange = speedRangeMetric;
+
+export const speedZonesMetric = { slow: 0.3, recommended: 0.9, aggressive: 1.4 };
+export const speedZonesImperial = { slow: 0.6, recommended: 2.0, aggressive: 2.8 };

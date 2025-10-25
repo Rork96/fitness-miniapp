@@ -2,7 +2,22 @@
 
 import * as React from "react";
 import "./WheelPicker.css";
-import { hapticTick } from "./haptics";
+
+function hapticLight() {
+  try {
+    const haptics = (globalThis as {
+      Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred?: (type: string) => void } } };
+    })?.Telegram?.WebApp?.HapticFeedback;
+    haptics?.impactOccurred?.("light");
+  } catch {
+    // ignore
+  }
+  try {
+    navigator?.vibrate?.(5);
+  } catch {
+    // ignore
+  }
+}
 
 export type WheelValue = number | string;
 
@@ -66,7 +81,7 @@ export function WheelPicker({ values, value, onChange, visibleCount = DEFAULT_VI
       if (nextValue === undefined) return;
       if (lastReportedValueRef.current === nextValue) return;
       lastReportedValueRef.current = nextValue;
-      hapticTick();
+      hapticLight();
       onChange(nextValue);
     },
     [clampIndex, onChange, values]
@@ -116,7 +131,7 @@ export function WheelPicker({ values, value, onChange, visibleCount = DEFAULT_VI
       const rawIndex = container.scrollTop / ROW_HEIGHT;
       const nextIndex = clampIndex(Math.round(rawIndex));
       if (highlightIndexRef.current !== nextIndex) {
-        hapticTick();
+        hapticLight();
         highlightIndexRef.current = nextIndex;
         setHighlightIndex(nextIndex);
       }
